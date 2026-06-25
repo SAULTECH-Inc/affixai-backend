@@ -1,0 +1,7 @@
+.env
+venv/
+.idea/
+uploads/
+__pycache__/
+log/
+node_modules/
