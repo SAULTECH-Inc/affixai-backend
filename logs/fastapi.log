@@ -1,0 +1,457 @@
+INFO:     Started server process [68443]
+INFO:     Waiting for application startup.
+2026-06-15 18:58:18.453 | INFO     | main:lifespan:74 - 🚀 Starting FastAPI AI Engine...
+2026-06-15 18:58:18.454 | INFO     | main:lifespan:75 - Environment: development
+2026-06-15 18:58:18.454 | INFO     | main:lifespan:76 - OCR Engine: tesseract
+2026-06-15 18:58:18.525 | INFO     | app.common.services.workflow_scheduler:register_jobs:75 - workflow scheduler jobs registered (hourly reminders + expirations)
+2026-06-15 18:58:18.527 | INFO     | app.common.services.workflow_scheduler:start:82 - workflow scheduler started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-06-15 18:58:18.771 | INFO     | main:add_process_time_header:117 - GET /health/ - 0.002s
+INFO:     127.0.0.1:51538 - "GET /health/ HTTP/1.1" 200 OK
+2026-06-15 18:58:20.103 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.037s
+INFO:     127.0.0.1:51588 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 18:58:50.114 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:52327 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 18:59:20.125 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:53066 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 18:59:50.138 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:53800 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 19:00:20.152 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+INFO:     127.0.0.1:54537 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 19:00:50.164 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:55270 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 19:01:20.183 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.010s
+INFO:     127.0.0.1:56015 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 19:01:50.195 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:56769 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 19:02:20.205 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:57511 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 19:02:36.518 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/subscriptions/plans - 0.003s
+INFO:     127.0.0.1:57923 - "OPTIONS /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:02:36.524 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.003s
+INFO:     127.0.0.1:57925 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:02:36.568 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.045s
+INFO:     127.0.0.1:57927 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:02:36.569 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.044s
+INFO:     127.0.0.1:57929 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:02:36.591 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.022s
+INFO:     127.0.0.1:57923 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:02:36.597 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.003s
+INFO:     127.0.0.1:57923 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:07:51.184 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.017s
+INFO:     127.0.0.1:49281 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:07:51.429 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.262s
+INFO:     127.0.0.1:49283 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:07:51.437 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.006s
+INFO:     127.0.0.1:49283 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:09:04.326 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.005s
+INFO:     127.0.0.1:51105 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:09:04.354 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.030s
+INFO:     127.0.0.1:51107 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:09:04.370 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.008s
+INFO:     127.0.0.1:51107 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:09:14.102 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.010s
+INFO:     127.0.0.1:51350 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:09:14.107 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.010s
+INFO:     127.0.0.1:51351 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:09:14.114 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.004s
+INFO:     127.0.0.1:51351 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:11:31.798 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.008s
+INFO:     127.0.0.1:54768 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:11:31.844 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.047s
+INFO:     127.0.0.1:54770 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:11:31.866 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.020s
+INFO:     127.0.0.1:54770 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:11:40.479 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.040s
+INFO:     127.0.0.1:55001 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:11:40.514 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.038s
+INFO:     127.0.0.1:55003 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:11:40.558 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.033s
+INFO:     127.0.0.1:55003 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:17:17.899 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/subscriptions/plans - 0.005s
+INFO:     127.0.0.1:63353 - "OPTIONS /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:17:17.902 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.003s
+INFO:     127.0.0.1:63355 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:17:17.907 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.007s
+INFO:     127.0.0.1:63356 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:17:17.955 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.046s
+INFO:     127.0.0.1:63358 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:17:18.082 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.173s
+INFO:     127.0.0.1:63353 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:17:18.090 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.005s
+INFO:     127.0.0.1:63353 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:17:39.025 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.003s
+INFO:     127.0.0.1:63875 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 19:17:40.207 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 1.184s
+INFO:     127.0.0.1:63877 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 19:17:40.215 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.006s
+INFO:     127.0.0.1:63877 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-15 20:58:18 WAT)" was missed by 0:23:28.994047
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-15 20:58:18 WAT)" was missed by 0:23:29.036451
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-15 21:58:18 WAT)" was missed by 0:19:45.598312
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-15 21:58:18 WAT)" was missed by 0:19:45.637195
+2026-06-15 21:41:39.517 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.110s
+INFO:     127.0.0.1:50126 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 21:41:46.419 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/segments - 0.005s
+INFO:     127.0.0.1:50527 - "OPTIONS /api/v1/data-vault/segments HTTP/1.1" 200 OK
+2026-06-15 21:41:46.432 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/subscriptions/me - 0.005s
+INFO:     127.0.0.1:50529 - "OPTIONS /api/v1/subscriptions/me HTTP/1.1" 200 OK
+2026-06-15 21:41:46.554 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/segments - 0.121s
+INFO:     127.0.0.1:50527 - "GET /api/v1/data-vault/segments HTTP/1.1" 401 Unauthorized
+2026-06-15 21:41:46.567 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/me - 0.013s
+INFO:     127.0.0.1:50531 - "GET /api/v1/subscriptions/me HTTP/1.1" 401 Unauthorized
+2026-06-15 21:41:46.721 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.040s
+INFO:     127.0.0.1:50531 - "OPTIONS /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-06-15 21:41:46.722 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.041s
+INFO:     127.0.0.1:50527 - "OPTIONS /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-06-15 21:41:47.763 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.974s
+INFO:     127.0.0.1:50533 - "POST /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-06-15 21:41:47.765 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 1.018s
+INFO:     127.0.0.1:50529 - "POST /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-06-15 21:41:48.130 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/me - 0.128s
+INFO:     127.0.0.1:50529 - "GET /api/v1/subscriptions/me HTTP/1.1" 200 OK
+2026-06-15 21:41:48.174 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/segments - 0.065s
+INFO:     127.0.0.1:50533 - "GET /api/v1/data-vault/segments HTTP/1.1" 200 OK
+2026-06-15 21:41:55.382 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.005s
+INFO:     127.0.0.1:50692 - "GET /api/v1/subscriptions/plans?country=US HTTP/1.1" 200 OK
+2026-06-15 21:41:55.399 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.019s
+INFO:     127.0.0.1:50693 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 21:41:55.451 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.050s
+INFO:     127.0.0.1:50692 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 21:45:55.932 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/leads - 0.001s
+INFO:     127.0.0.1:56828 - "OPTIONS /api/v1/leads HTTP/1.1" 200 OK
+2026-06-15 21:45:56.239 | INFO     | app.api.routes.leads:create_lead:146 - new contact lead from shadrach.adamu@gmail.com (id=f3276d78-497e-43c7-a2dd-92dcf9c7482e)
+2026-06-15 21:45:56.242 | INFO     | main:add_process_time_header:117 - POST /api/v1/leads - 0.296s
+INFO:     127.0.0.1:56828 - "POST /api/v1/leads HTTP/1.1" 201 Created
+2026-06-15 21:45:56.289 | WARNING  | app.common.services.email_service:_send:48 - Email to hello@affixai.com failed: Error connecting to localhost on port 1025: [Errno 61] Connection refused
+2026-06-15 21:45:56.289 | WARNING  | app.api.routes.leads:_notify_team:196 - lead notify email failed (lead=f3276d78-497e-43c7-a2dd-92dcf9c7482e): Error connecting to localhost on port 1025: [Errno 61] Connection refused
+2026-06-15 21:46:26.723 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/me - 0.014s
+INFO:     127.0.0.1:57511 - "GET /api/v1/subscriptions/me HTTP/1.1" 200 OK
+2026-06-15 21:46:26.726 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/segments - 0.020s
+INFO:     127.0.0.1:56835 - "GET /api/v1/data-vault/segments HTTP/1.1" 200 OK
+2026-06-15 21:46:33.737 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents - 0.001s
+INFO:     127.0.0.1:57658 - "OPTIONS /api/v1/documents HTTP/1.1" 200 OK
+2026-06-15 21:46:33.738 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents - 0.002s
+INFO:     127.0.0.1:57660 - "OPTIONS /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:46:33.775 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.028s
+INFO:     127.0.0.1:57658 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:46:33.813 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.071s
+INFO:     127.0.0.1:57662 - "GET /api/v1/documents HTTP/1.1" 200 OK
+2026-06-15 21:46:39.944 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/participants - 0.005s
+INFO:     127.0.0.1:57828 - "OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/participants HTTP/1.1" 200 OK
+2026-06-15 21:46:39.946 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/workflow - 0.007s
+INFO:     127.0.0.1:57831 - "OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/workflow HTTP/1.1" 200 OK
+2026-06-15 21:46:39.950 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/activity - 0.009s
+INFO:     127.0.0.1:57832 - "OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/activity?limit=12 HTTP/1.1" 200 OK
+2026-06-15 21:46:40.151 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/workflow - 0.187s
+INFO:     127.0.0.1:57834 - "GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/workflow HTTP/1.1" 200 OK
+2026-06-15 21:46:40.153 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/participants - 0.200s
+INFO:     127.0.0.1:57828 - "GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/participants HTTP/1.1" 200 OK
+2026-06-15 21:46:40.193 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/activity - 0.223s
+INFO:     127.0.0.1:57831 - "GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/activity?limit=12 HTTP/1.1" 200 OK
+2026-06-15 21:46:46.086 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/comments - 0.007s
+INFO:     127.0.0.1:57991 - "OPTIONS /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/comments HTTP/1.1" 200 OK
+2026-06-15 21:46:46.228 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/comments - 0.138s
+INFO:     127.0.0.1:57991 - "GET /api/v1/documents/dd075bce-13a0-469e-9557-8f4dfcc2ee65/comments HTTP/1.1" 200 OK
+2026-06-15 21:46:59.610 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.001s
+INFO:     127.0.0.1:57994 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 21:46:59.618 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.003s
+INFO:     127.0.0.1:58349 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 21:46:59.632 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.010s
+INFO:     127.0.0.1:57994 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 21:46:59.643 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.019s
+INFO:     127.0.0.1:58351 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 21:46:59.664 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.008s
+INFO:     127.0.0.1:58351 - "GET /api/v1/documents HTTP/1.1" 200 OK
+2026-06-15 21:46:59.667 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.010s
+INFO:     127.0.0.1:57994 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:47:03.797 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+INFO:     127.0.0.1:57994 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:47:33.865 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.051s
+INFO:     127.0.0.1:59185 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:48:03.878 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:59853 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:48:33.893 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.008s
+INFO:     127.0.0.1:60351 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:49:03.937 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.037s
+INFO:     127.0.0.1:61113 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:49:33.952 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+INFO:     127.0.0.1:62015 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:50:03.974 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.010s
+INFO:     127.0.0.1:62853 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:50:33.991 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:63804 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:51:04.007 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:64703 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:51:34.018 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:49327 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:52:04.033 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.008s
+INFO:     127.0.0.1:50279 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:52:34.047 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+INFO:     127.0.0.1:51253 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:53:04.062 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:52227 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:53:34.073 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:53222 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:54:04.084 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:54204 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:54:34.099 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.008s
+INFO:     127.0.0.1:55205 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:55:04.112 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:56195 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:55:34.125 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+INFO:     127.0.0.1:57160 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:56:04.139 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:58118 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:56:34.147 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents - 0.000s
+INFO:     127.0.0.1:59090 - "OPTIONS /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:56:34.159 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:59090 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:57:04.178 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.011s
+INFO:     127.0.0.1:60030 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:57:34.223 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.034s
+INFO:     127.0.0.1:61015 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:58:04.222 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:61936 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:58:34.237 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.011s
+INFO:     127.0.0.1:62970 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:59:04.248 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:64351 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 21:59:34.260 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:65426 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:00:04.268 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:49959 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:00:34.281 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:50982 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:01:04.292 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:51873 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:01:34.305 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:52613 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:02:04.318 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:53389 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:02:34.331 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+INFO:     127.0.0.1:54254 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:03:04.343 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+INFO:     127.0.0.1:54986 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:03:34.357 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+INFO:     127.0.0.1:55717 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:04:04.375 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.011s
+INFO:     127.0.0.1:56449 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:04:34.386 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.003s
+INFO:     127.0.0.1:57176 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:05:04.397 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:57911 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 22:05:34.428 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+INFO:     127.0.0.1:58649 - "GET /api/v1/documents?status=draft HTTP/1.1" 200 OK
+2026-06-15 23:07:37.777 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.006s
+INFO:     127.0.0.1:50864 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 23:07:37.786 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.012s
+INFO:     127.0.0.1:50865 - "OPTIONS /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 23:07:37.805 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.016s
+INFO:     127.0.0.1:50865 - "GET /api/v1/users/profile HTTP/1.1" 401 Unauthorized
+2026-06-15 23:07:37.809 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.002s
+INFO:     127.0.0.1:50867 - "GET /api/v1/users/profile HTTP/1.1" 401 Unauthorized
+2026-06-15 23:07:38.225 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.000s
+INFO:     127.0.0.1:50867 - "OPTIONS /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-06-15 23:07:38.356 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.123s
+INFO:     127.0.0.1:50867 - "POST /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-06-15 23:07:38.358 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.116s
+INFO:     127.0.0.1:50865 - "POST /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-06-15 23:07:38.729 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.005s
+INFO:     127.0.0.1:50865 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 23:07:38.732 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.007s
+INFO:     127.0.0.1:50867 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 23:07:41.493 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.009s
+INFO:     127.0.0.1:50867 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+2026-06-15 23:07:41.495 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.008s
+INFO:     127.0.0.1:50865 - "GET /api/v1/users/profile HTTP/1.1" 200 OK
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 00:58:18 WAT)" was missed by 0:07:08.275087
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 00:58:18 WAT)" was missed by 0:07:08.428884
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 01:58:18 WAT)" was missed by 0:16:08.533827
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 01:58:18 WAT)" was missed by 0:16:08.566761
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 02:58:18 WAT)" was missed by 0:10:24.508751
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 02:58:18 WAT)" was missed by 0:10:24.523557
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 03:58:18 WAT)" was missed by 0:18:22.434215
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 03:58:18 WAT)" was missed by 0:18:22.583024
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 04:58:18 WAT)" was missed by 0:19:29.011705
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 04:58:18 WAT)" was missed by 0:19:29.034610
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 05:58:18 WAT)" was missed by 0:20:36.147014
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 05:58:18 WAT)" was missed by 0:20:36.171649
+Run time of job "reminder_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 06:58:18 WAT)" was missed by 0:21:43.040766
+Run time of job "expiration_sweep (trigger: interval[1:00:00], next run at: 2026-06-16 06:58:18 WAT)" was missed by 0:21:43.068381
+documents - 0.008s
+2026-06-15 21:46:59.667 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.010s
+2026-06-15 21:47:03.797 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-15 21:47:33.865 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.051s
+2026-06-15 21:48:03.878 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 21:48:33.893 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.008s
+2026-06-15 21:49:03.937 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.037s
+2026-06-15 21:49:33.952 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-15 21:50:03.974 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.010s
+2026-06-15 21:50:33.991 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-15 21:51:04.007 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-15 21:51:34.018 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-15 21:52:04.033 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.008s
+2026-06-15 21:52:34.047 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-15 21:53:04.062 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-15 21:53:34.073 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-15 21:54:04.084 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-15 21:54:34.099 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.008s
+2026-06-15 21:55:04.112 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 21:55:34.125 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-15 21:56:04.139 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-15 21:56:34.147 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents - 0.000s
+2026-06-15 21:56:34.159 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 21:57:04.178 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.011s
+2026-06-15 21:57:34.223 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.034s
+2026-06-15 21:58:04.222 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 21:58:34.237 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.011s
+2026-06-15 21:59:04.248 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 21:59:34.260 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 22:00:04.268 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-15 22:00:34.281 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-15 22:01:04.292 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 22:01:34.305 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-15 22:02:04.318 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-15 22:02:34.331 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-15 22:03:04.343 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-15 22:03:34.357 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-15 22:04:04.375 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.011s
+2026-06-15 22:04:34.386 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.003s
+2026-06-15 22:05:04.397 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-15 22:05:34.428 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-15 23:07:37.777 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.006s
+2026-06-15 23:07:37.786 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.012s
+2026-06-15 23:07:37.805 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.016s
+2026-06-15 23:07:37.809 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.002s
+2026-06-15 23:07:38.225 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.000s
+2026-06-15 23:07:38.356 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.123s
+2026-06-15 23:07:38.358 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.116s
+2026-06-15 23:07:38.729 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.005s
+2026-06-15 23:07:38.732 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.007s
+2026-06-15 23:07:41.493 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.009s
+2026-06-15 23:07:41.495 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.008s
+2026-06-16 08:42:57.690 | INFO     | main:lifespan:74 - 🚀 Starting FastAPI AI Engine...
+2026-06-16 08:42:57.691 | INFO     | main:lifespan:75 - Environment: development
+2026-06-16 08:42:57.691 | INFO     | main:lifespan:76 - OCR Engine: tesseract
+2026-06-16 08:42:57.763 | INFO     | app.common.services.workflow_scheduler:register_jobs:75 - workflow scheduler jobs registered (hourly reminders + expirations)
+2026-06-16 08:42:57.764 | INFO     | app.common.services.workflow_scheduler:start:82 - workflow scheduler started
+2026-06-16 08:48:21.730 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.001s
+2026-06-16 08:48:21.733 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.003s
+2026-06-16 08:48:25.817 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f - 0.014s
+2026-06-16 08:48:25.818 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/api-keys - 0.015s
+2026-06-16 08:48:25.820 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/stats - 0.016s
+2026-06-16 08:48:25.820 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/documents - 0.010s
+2026-06-16 08:48:25.915 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f - 0.093s
+2026-06-16 08:48:25.929 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/api-keys - 0.020s
+2026-06-16 08:48:25.931 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/stats - 0.018s
+2026-06-16 08:48:25.931 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/documents - 0.018s
+2026-06-16 08:48:25.943 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.002s
+2026-06-16 08:48:25.944 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.003s
+2026-06-16 08:48:25.945 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.004s
+2026-06-16 08:48:25.946 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.004s
+2026-06-16 08:48:26.249 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.291s
+2026-06-16 08:48:26.249 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.296s
+2026-06-16 08:48:26.250 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.297s
+2026-06-16 08:48:26.251 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.297s
+2026-06-16 08:48:26.279 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f - 0.019s
+2026-06-16 08:48:26.285 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/api-keys - 0.025s
+2026-06-16 08:48:26.326 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/documents - 0.069s
+2026-06-16 08:48:26.337 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/stats - 0.079s
+2026-06-16 08:48:28.018 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/schema - 0.000s
+2026-06-16 08:48:28.033 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/segments - 0.002s
+2026-06-16 08:48:28.035 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/custom/sections - 0.003s
+2026-06-16 08:48:28.041 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/schema - 0.019s
+2026-06-16 08:48:28.080 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/custom/sections - 0.036s
+2026-06-16 08:48:28.100 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/segments - 0.058s
+2026-06-16 08:48:29.468 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/subscriptions/me - 0.001s
+2026-06-16 08:48:29.540 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/me - 0.053s
+2026-06-16 08:48:31.890 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/referrals/me - 0.001s
+2026-06-16 08:48:31.941 | INFO     | main:add_process_time_header:117 - GET /api/v1/referrals/me - 0.048s
+2026-06-16 09:21:43.639 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.021s
+2026-06-16 09:22:41.225 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/login - 0.000s
+2026-06-16 09:22:56.691 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/login - 0.001s
+2026-06-16 09:23:11.047 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/login - 0.000s
+2026-06-16 09:23:49.449 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/register - 0.000s
+2026-06-16 09:25:00.914 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.001s
+2026-06-16 09:25:00.915 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.002s
+2026-06-16 09:25:01.076 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.151s
+2026-06-16 09:25:01.077 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.152s
+2026-06-16 09:25:01.363 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/referrals/me - 0.000s
+2026-06-16 09:25:01.404 | INFO     | main:add_process_time_header:117 - GET /api/v1/referrals/me - 0.020s
+2026-06-16 09:25:02.846 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.042s
+2026-06-16 09:25:02.870 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.066s
+2026-06-16 09:25:02.917 | INFO     | main:add_process_time_header:117 - GET /api/v1/referrals/me - 0.026s
+2026-06-16 09:25:10.452 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/schema - 0.002s
+2026-06-16 09:25:10.468 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/segments - 0.017s
+2026-06-16 09:25:10.470 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/custom/sections - 0.018s
+2026-06-16 09:25:10.495 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/schema - 0.023s
+2026-06-16 09:25:10.587 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/segments - 0.105s
+2026-06-16 09:25:10.607 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/custom/sections - 0.123s
+2026-06-16 09:25:22.432 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents - 0.010s
+2026-06-16 09:25:22.483 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/documents - 0.055s
+2026-06-16 09:25:22.523 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.024s
+2026-06-16 09:25:22.544 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.051s
+2026-06-16 09:25:52.538 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-16 09:26:22.568 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.022s
+2026-06-16 09:26:52.584 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-16 09:27:22.600 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.005s
+2026-06-16 09:27:52.612 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-16 09:28:22.624 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.003s
+2026-06-16 09:28:52.641 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-16 09:29:22.658 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-16 09:29:52.670 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.004s
+2026-06-16 09:30:22.801 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.054s
+2026-06-16 09:30:52.818 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-16 09:31:22.837 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-16 09:31:52.854 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-16 09:32:22.873 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.007s
+2026-06-16 09:32:52.891 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-16 09:33:22.907 | INFO     | main:add_process_time_header:117 - GET /api/v1/documents - 0.006s
+2026-06-16 09:33:46.199 | INFO     | main:add_process_time_header:117 - GET /docs - 0.005s
+2026-06-16 09:33:47.316 | INFO     | main:add_process_time_header:117 - GET /openapi.json - 0.956s
+2026-06-25 16:59:44.300 | INFO     | main:lifespan:74 - 🚀 Starting FastAPI AI Engine...
+2026-06-25 16:59:44.301 | INFO     | main:lifespan:75 - Environment: development
+2026-06-25 16:59:44.301 | INFO     | main:lifespan:76 - OCR Engine: tesseract
+2026-06-25 16:59:44.362 | INFO     | app.common.services.workflow_scheduler:register_jobs:75 - workflow scheduler jobs registered (hourly reminders + expirations)
+2026-06-25 16:59:44.363 | INFO     | app.common.services.workflow_scheduler:start:82 - workflow scheduler started
+2026-06-25 17:00:08.355 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/subscriptions/plans - 0.002s
+2026-06-25 17:00:08.359 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.005s
+2026-06-25 17:00:08.361 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.007s
+2026-06-25 17:00:08.382 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/plans - 0.018s
+2026-06-25 17:00:08.420 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.038s
+2026-06-25 17:00:08.443 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.008s
+2026-06-25 17:00:08.443 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/auth/refresh - 0.001s
+2026-06-25 17:00:08.681 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.235s
+2026-06-25 17:00:08.682 | INFO     | main:add_process_time_header:117 - POST /api/v1/auth/refresh - 0.229s
+2026-06-25 17:00:08.698 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.012s
+2026-06-25 17:00:08.702 | INFO     | main:add_process_time_header:117 - GET /api/v1/users/profile - 0.002s
+2026-06-25 17:04:01.408 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/segments - 0.020s
+2026-06-25 17:04:01.436 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/subscriptions/me - 0.041s
+2026-06-25 17:04:01.552 | INFO     | main:add_process_time_header:117 - GET /api/v1/subscriptions/me - 0.055s
+2026-06-25 17:04:01.597 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/segments - 0.149s
+2026-06-25 17:04:09.447 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/schema - 0.001s
+2026-06-25 17:04:09.457 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/data-vault/custom/sections - 0.006s
+2026-06-25 17:04:09.492 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/schema - 0.036s
+2026-06-25 17:04:09.593 | INFO     | main:add_process_time_header:117 - GET /api/v1/data-vault/custom/sections - 0.118s
+2026-06-25 17:12:31.130 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/integrations/cloud/providers - 0.015s
+2026-06-25 17:12:31.146 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/integrations/cloud/connections - 0.024s
+2026-06-25 17:12:31.158 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/webhooks - 0.034s
+2026-06-25 17:12:31.165 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/webhooks/event-types - 0.021s
+2026-06-25 17:12:31.332 | INFO     | main:add_process_time_header:117 - GET /api/v1/webhooks/event-types - 0.014s
+2026-06-25 17:12:31.485 | INFO     | main:add_process_time_header:117 - GET /api/v1/integrations/cloud/providers - 0.318s
+2026-06-25 17:12:31.518 | INFO     | main:add_process_time_header:117 - GET /api/v1/webhooks - 0.200s
+2026-06-25 17:12:31.520 | INFO     | main:add_process_time_header:117 - GET /api/v1/integrations/cloud/connections - 0.212s
+2026-06-25 17:12:37.814 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/users/profile - 0.002s
+2026-06-25 17:12:37.909 | INFO     | main:add_process_time_header:117 - PUT /api/v1/users/profile - 0.092s
+2026-06-25 17:12:47.771 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f - 0.003s
+2026-06-25 17:12:47.773 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/api-keys - 0.004s
+2026-06-25 17:12:47.786 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/stats - 0.015s
+2026-06-25 17:12:47.787 | INFO     | main:add_process_time_header:117 - OPTIONS /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/documents - 0.014s
+2026-06-25 17:12:47.920 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/api-keys - 0.120s
+2026-06-25 17:12:47.922 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f - 0.134s
+2026-06-25 17:12:47.974 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/stats - 0.174s
+2026-06-25 17:12:47.983 | INFO     | main:add_process_time_header:117 - GET /api/v1/enterprises/4d36825c-bead-4ead-8d69-df111573526f/documents - 0.171s
+2026-06-25 17:21:34.596 | INFO     | main:lifespan:87 - Shutting down FastAPI AI Engine...
+2026-06-25 17:21:34.603 | INFO     | app.common.services.workflow_scheduler:stop:88 - workflow scheduler stopped

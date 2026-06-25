@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@sentry/react": "^8.55.2",
+    "@types/helmet": "^0.0.48"
+  }
+}

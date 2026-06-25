@@ -1,0 +1,70 @@
+# AI Document Signer — FastAPI backend
+# Lean dependency set: only what's actually imported in app/. Heavy ML libs
+# (torch, tensorflow, transformers, easyocr, paddleocr, spacy, nltk,
+# layoutparser) listed in the old pyproject were aspirational and not imported.
+# Add them back to a separate requirements-ml.txt if/when the AI services
+# actually need them.
+
+# Web framework
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+python-dotenv
+
+# Database
+tortoise-orm[asyncpg]>=0.20.0,<0.22
+aerich>=0.7.2
+
+# Auth & crypto
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+cryptography
+email-validator
+
+# Email
+aiosmtplib
+jinja2
+
+# Billing
+stripe
+
+# AWS / HTTP
+boto3
+httpx
+
+# OCR + image processing (used by app/services/*)
+numpy
+pillow
+opencv-python
+pdf2image
+pytesseract
+fuzzywuzzy
+python-Levenshtein
+
+# PDF stamping for the auto-affix engine (Phase 4)
+pymupdf
+
+# Document processing layer (Phase B)
+#   pdf2docx     — PDF → DOCX conversion
+#   python-docx  — DOCX read / write / TXT extraction
+#   reportlab    — TXT / Markdown → PDF
+#   markdown     — Markdown → HTML (intermediate for DOCX generation)
+pdf2docx
+python-docx
+reportlab
+markdown
+
+# In-process scheduler for background workflow reminders + expiration sweeps
+apscheduler
+
+# Cloud storage exports (Phase E2). Adding a provider = drop a new file in
+# app/common/services/cloud_storage/ — only Google Drive is wired today.
+google-auth
+google-auth-oauthlib
+google-api-python-client
+
+# Logging
+loguru

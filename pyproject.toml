@@ -1,0 +1,126 @@
+[tool.poetry]
+name = "ai-document-signer-fastapi"
+version = "1.0.0"
+description = "AI & Document Intelligence Engine — OCR, field detection, auto-fill, and classification."
+authors = ["AI Document Signer Team"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+
+# FastAPI and Web Framework
+fastapi = "0.109.0"
+uvicorn = {extras = ["standard"], version = "0.27.0"}
+python-multipart = "0.0.6"
+pydantic = "2.5.3"
+pydantic-settings = "2.1.0"
+
+# AI and ML Libraries
+tensorflow = "2.15.0"
+torch = "2.1.2"
+torchvision = "0.16.2"
+transformers = "4.36.2"
+numpy = "1.26.4"
+pillow = "10.2.0"
+
+# OCR and Document Processing
+pytesseract = "0.3.10"
+pdf2image = "1.17.0"
+pypdf2 = "3.0.1"
+opencv-python = "4.6.0.66"
+python-docx = "1.1.0"
+openpyxl = "3.1.2"
+
+# NLP and Text Processing
+spacy = "3.7.2"
+nltk = "3.8.1"
+fuzzywuzzy = "0.18.0"
+python-Levenshtein = "0.25.0"
+
+# Computer Vision
+easyocr = "1.7.1"
+paddleocr = "2.7.0.3"
+layoutparser = "0.3.4"
+
+# HTTP and Async
+httpx = "0.26.0"
+aiohttp = "3.9.1"
+requests = "2.31.0"
+
+# Primary Database (Postgres via Tortoise ORM)
+tortoise-orm = {extras = ["asyncpg"], version = "0.20.0"}
+aerich = "0.7.2"
+
+# Error reporting (optional — only initialized when SENTRY_DSN is set)
+sentry-sdk = {extras = ["fastapi"], version = "2.19.2"}
+
+# Caching / secondary stores
+redis = "5.0.1"
+pymongo = "4.6.1"
+
+# Auth & Crypto
+python-dotenv = "1.0.0"
+python-jose = {extras = ["cryptography"], version = "3.3.0"}
+passlib = {extras = ["bcrypt"], version = "1.7.4"}
+bcrypt = "4.1.2"
+cryptography = "42.0.2"
+itsdangerous = "2.1.2"
+authlib = "1.3.0"
+email-validator = "2.1.0"
+
+# Email
+aiosmtplib = "3.0.1"
+jinja2 = "3.1.3"
+
+# Billing
+stripe = "8.5.0"
+
+# Rate limiting
+slowapi = "0.1.9"
+
+# AWS and Cloud Storage
+boto3 = "1.34.27"
+botocore = "1.34.27"
+
+# Logging and Monitoring
+loguru = "0.7.2"
+prometheus-fastapi-instrumentator = "6.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "7.4.4"
+pytest-asyncio = "0.23.3"
+black = "24.1.1"
+flake8 = "7.0.0"
+mypy = "1.8.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.aerich]
+tortoise_orm = "app.db.base.TORTOISE_ORM"
+location = "./migrations"
+src_folder = "./."
+
+[tool.pytest.ini_options]
+# Make `app`, `main`, etc. importable from tests without installing the
+# package. pytest discovers conftest.py in tests/ but needs help finding
+# the project root for module resolution.
+pythonpath = ["."]
+asyncio_mode = "auto"
+# Auto-mode means we don't need @pytest.mark.asyncio on every async test
+# (it's redundant but harmless; we leave the marker for clarity).
+testpaths = ["tests"]
+# Skip the legacy test files in the existing tests/ dir — they reference
+# `app.services.autofill_service` which doesn't exist in the current
+# codebase. New tests go in files starting with test_<feature>.py.
+addopts = "--ignore=tests/test_autofill.py --ignore=tests/test_classification.py --ignore=tests/test_spatial_analysis.py"

@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # FastAPI Application
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-doc-signer-fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: development
+      DEBUG: "True"
+      REDIS_HOST: redis
+      MONGODB_URL: mongodb://mongo:27017
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - mongo
+    networks:
+      - ai-doc-signer-network
+    restart: unless-stopped
+
+  # Postgres — primary application database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-doc-signer-postgres-fastapi
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ai_document_signer
+    volumes:
+      - postgres_data_fastapi:/var/lib/postgresql/data
+    networks:
+      - ai-doc-signer-network
+    restart: unless-stopped
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: ai-doc-signer-redis-fastapi
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data_fastapi:/data
+    networks:
+      - ai-doc-signer-network
+    restart: unless-stopped
+
+  # MongoDB for storing results
+  mongo:
+    image: mongo:7
+    container_name: ai-doc-signer-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ai-doc-signer-network
+    restart: unless-stopped
+
+networks:
+  ai-doc-signer-network:
+    driver: bridge
+
+volumes:
+  postgres_data_fastapi:
+  redis_data_fastapi:
+  mongo_data:
