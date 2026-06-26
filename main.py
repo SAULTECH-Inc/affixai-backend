@@ -34,13 +34,15 @@ from app.api.routes import (
 )
 from app.db.session import register_db
 
-# Configure logging
-logger.add(
-    settings.LOG_FILE,
-    rotation="500 MB",
-    retention="10 days",
-    level=settings.LOG_LEVEL,
-)
+# Configure logging — skip file sink on Vercel (read-only fs); stdout is captured.
+import os as _os
+if not _os.environ.get("VERCEL"):
+    logger.add(
+        settings.LOG_FILE,
+        rotation="500 MB",
+        retention="10 days",
+        level=settings.LOG_LEVEL,
+    )
 
 # Error reporting — Sentry. Only initialized when SENTRY_DSN is set so dev
 # stays quiet. Must run BEFORE FastAPI() so the SDK can hook the ASGI app.
