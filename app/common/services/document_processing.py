@@ -510,9 +510,9 @@ import hashlib
 from collections import OrderedDict
 from threading import Lock
 
-_CONVERSION_CACHE_DIR = (
-    Path(__file__).resolve().parents[3] / "uploads" / "conversion_cache"
-)
+import os as _os
+_uploads_base = Path("/tmp/uploads") if _os.environ.get("VERCEL") else Path(__file__).resolve().parents[3] / "uploads"
+_CONVERSION_CACHE_DIR = _uploads_base / "conversion_cache"
 _CONVERSION_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 _CACHE_LOCK = Lock()
 _CACHE_MAX_ENTRIES = 64

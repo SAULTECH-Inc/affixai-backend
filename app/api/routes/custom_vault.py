@@ -55,9 +55,10 @@ from app.models.custom_vault_schemas import (
 router = APIRouter()
 
 
-# Same uploads root we use for signatures / passport photos / documents.
-UPLOADS_ROOT = Path(__file__).resolve().parents[3] / "uploads"
-CUSTOM_FILES_DIR = UPLOADS_ROOT / "custom_vault"
+# Vercel's /var/task filesystem is read-only; use /tmp when running there.
+import os as _os
+_uploads_base = Path("/tmp/uploads") if _os.environ.get("VERCEL") else Path(__file__).resolve().parents[3] / "uploads"
+CUSTOM_FILES_DIR = _uploads_base / "custom_vault"
 CUSTOM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -643,7 +644,7 @@ async def download_field_file(
         rel_path = decrypt(row.encrypted_value)
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Could not decrypt file path") from exc
-    full = UPLOADS_ROOT / rel_path
+    full = _uploads_base / rel_path
     if not full.exists():
         raise HTTPException(status_code=404, detail="File missing on disk")
     original = (row.metadata or {}).get("original_filename") or full.name
