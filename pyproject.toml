@@ -37,6 +37,10 @@ dependencies = [
     "python-Levenshtein==0.25.0",
     # Scheduler
     "apscheduler",
+    # Google Drive cloud export
+    "google-auth",
+    "google-auth-oauthlib",
+    "google-api-python-client",
     # Logging
     "loguru==0.7.2",
 ]
