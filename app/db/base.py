@@ -29,8 +29,15 @@ MODELS_MODULES = [
     "app.db.models.passport_photo",
     "app.db.models.lead",
     "app.db.models.referral",
-    "aerich.models",
 ]
+
+# aerich.models is only needed when running the aerich migration CLI locally.
+# It is not installed in the production runtime, so we include it conditionally.
+try:
+    import aerich  # noqa: F401
+    MODELS_MODULES.append("aerich.models")
+except ImportError:
+    pass
 
 TORTOISE_ORM = {
     "connections": {"default": settings.DATABASE_URL},
