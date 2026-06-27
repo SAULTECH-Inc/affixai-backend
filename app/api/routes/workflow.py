@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import io
 from datetime import datetime, timezone
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
 from loguru import logger
 
 from app.common.deps import get_current_user
@@ -32,7 +30,7 @@ from app.common.services.workflow import (
     mark_viewed,
     is_participant_actionable,
 )
-from app.common.services.local_storage import UPLOADS_ROOT
+from app.common.services.local_storage import save_bytes as storage_save, fetch_file_bytes, serve_file
 from app.core.config import settings
 from app.db.models.audit_log import AuditAction
 from app.db.models.document import Document, RoutingMode, RoutingStatus
@@ -459,13 +457,10 @@ async def guest_download_file(invite_token: str):
         await mark_viewed(doc, p)
 
     target = doc.completed_file_url or doc.file_url
-    if not target or not target.startswith("local://"):
+    if not target:
         raise HTTPException(404, "No file available")
-    path = UPLOADS_ROOT / target.replace("local://", "", 1)
-    if not path.exists():
-        raise HTTPException(404, "File missing on disk")
-    return FileResponse(
-        str(path),
+    return serve_file(
+        target,
         media_type=doc.file_mime_type or "application/pdf",
         filename=doc.original_file_name or "document.pdf",
     )
@@ -500,13 +495,9 @@ async def guest_sign(
 
     # Stamp the signature onto the latest version of the file and save it.
     target = doc.completed_file_url or doc.file_url
-    if not target or not target.startswith("local://"):
+    if not target:
         raise HTTPException(404, "Document file is no longer available")
-    src_path = UPLOADS_ROOT / target.replace("local://", "", 1)
-    if not src_path.exists():
-        raise HTTPException(404, "Document file missing on disk")
-
-    pdf_bytes = src_path.read_bytes()
+    pdf_bytes = await fetch_file_bytes(target)
 
     # If the owner placed targets for THIS participant, use them. Otherwise
     # fall back to a single bottom-right stamp (the original MVP behavior).
@@ -538,11 +529,8 @@ async def guest_sign(
 
     # Save as a NEW completed_file_url — we don't overwrite the previous
     # version so the audit trail keeps each step's artifact.
-    rel = f"signed/{doc.id}_{p.id}_{uuid4().hex[:10]}.pdf"
-    out_path = UPLOADS_ROOT / rel
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_bytes(stamped_bytes)
-    doc.completed_file_url = f"local://{rel}"
+    stored = storage_save(stamped_bytes, f"signed-{doc.id}-{uuid4().hex[:10]}.pdf", folder="signed")
+    doc.completed_file_url = stored["url"]
     doc.file_size = len(stamped_bytes)
     await doc.save()
 

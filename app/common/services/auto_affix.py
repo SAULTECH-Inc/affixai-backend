@@ -16,7 +16,6 @@ import base64
 import io
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -24,7 +23,7 @@ from contextvars import ContextVar
 
 from loguru import logger
 
-from app.common.services.local_storage import UPLOADS_ROOT
+from app.common.services.local_storage import fetch_file_bytes
 from app.common.vault_schema import VaultSegment, match_label_to_field as _raw_match
 from app.core.encryption import decrypt
 from app.db.models.data_vault import DataVault
@@ -576,22 +575,14 @@ async def get_user_default_signature(user_id: UUID) -> tuple[bytes, str] | None:
             logger.warning(f"signature base64 decode failed: {exc}")
 
     if sig.signature_url:
-        # Support both `local://signatures/x.png` and bare `signatures/x.png`.
-        key = sig.signature_url.replace("local://", "", 1)
-        path = UPLOADS_ROOT / key
-        if path.exists():
-            try:
-                data = path.read_bytes()
-                logger.info(
-                    f"loaded signature for user {user_id} from {path} ({len(data)} bytes)"
-                )
-                return data, "image/png"
-            except Exception as exc:
-                logger.warning(f"signature file read failed at {path}: {exc}")
-        else:
-            logger.warning(
-                f"signature for user {user_id} has url {sig.signature_url!r} but file missing at {path}"
+        try:
+            data = await fetch_file_bytes(sig.signature_url)
+            logger.info(
+                f"loaded signature for user {user_id} from {sig.signature_url!r} ({len(data)} bytes)"
             )
+            return data, "image/png"
+        except Exception as exc:
+            logger.warning(f"signature file read failed for {sig.signature_url!r}: {exc}")
 
     return None
 
@@ -608,21 +599,14 @@ async def get_user_default_photo(user_id: UUID) -> bytes | None:
     if not photo or not photo.photo_url:
         logger.info(f"no passport photo found for user {user_id}")
         return None
-    key = photo.photo_url.replace("local://", "", 1)
-    path = UPLOADS_ROOT / key
-    if path.exists():
-        try:
-            data = path.read_bytes()
-            logger.info(
-                f"loaded passport photo for user {user_id} from {path} ({len(data)} bytes)"
-            )
-            return data
-        except Exception as exc:
-            logger.warning(f"photo file read failed at {path}: {exc}")
-    else:
-        logger.warning(
-            f"passport photo for user {user_id} has url {photo.photo_url!r} but file missing at {path}"
+    try:
+        data = await fetch_file_bytes(photo.photo_url)
+        logger.info(
+            f"loaded passport photo for user {user_id} from {photo.photo_url!r} ({len(data)} bytes)"
         )
+        return data
+    except Exception as exc:
+        logger.warning(f"photo file read failed for {photo.photo_url!r}: {exc}")
     return None
 
 

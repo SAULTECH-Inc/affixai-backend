@@ -228,25 +228,14 @@ async def get_signature_file(
     signature_id: UUID, user: User = Depends(get_current_user)
 ):
     """Stream the signature PNG bytes for preview / display in the UI."""
-    from pathlib import Path
-    from fastapi.responses import FileResponse
-    from app.common.services.local_storage import UPLOADS_ROOT
+    from app.common.services.local_storage import serve_file
 
     sig = await Signature.get_or_none(
         id=signature_id, user_id=user.id, deleted_at=None
     )
     if not sig or not sig.signature_url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-    if not sig.signature_url.startswith("local://"):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Signature is not locally stored",
-        )
-    key = sig.signature_url.replace("local://", "", 1)
-    path: Path = UPLOADS_ROOT / key
-    if not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Missing on disk")
-    return FileResponse(str(path), media_type="image/png")
+    return serve_file(sig.signature_url, media_type="image/png", filename="signature.png")
 
 
 @router.put("/{signature_id}", response_model=SignatureOut)

@@ -21,7 +21,7 @@ dependencies = [
     "cryptography==42.0.2",
     "email-validator==2.1.0",
     # Email
-    "aiosmtplib==3.0.1",
+    "resend>=2.0.0",
     # Billing
     "stripe==8.5.0",
     # AWS / HTTP
@@ -37,6 +37,8 @@ dependencies = [
     "python-Levenshtein==0.25.0",
     # Scheduler
     "apscheduler",
+    # Cloudinary file storage
+    "cloudinary",
     # Google Drive cloud export
     "google-auth",
     "google-auth-oauthlib",
@@ -126,8 +128,7 @@ authlib = "1.3.0"
 email-validator = "2.1.0"
 
 # Email
-aiosmtplib = "3.0.1"
-jinja2 = "3.1.3"
+resend = ">=2.0.0"
 
 # Billing
 stripe = "8.5.0"

@@ -72,7 +72,16 @@ def register_jobs() -> None:
         coalesce=True,
         misfire_grace_time=300,
     )
-    logger.info("workflow scheduler jobs registered (hourly reminders + expirations)")
+    sch.add_job(
+        subscription_expiry_sweep,
+        trigger=IntervalTrigger(hours=24),
+        id="subscription_expiry_sweep",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+    logger.info("workflow scheduler jobs registered (reminders, expirations, subscription expiry)")
 
 
 def start() -> None:
@@ -184,6 +193,74 @@ async def expiration_sweep() -> None:
     logger.info(f"expiration_sweep: marked {len(overdue)} workflow(s) expired")
 
 
+async def subscription_expiry_sweep() -> None:
+    """Email users whose subscription or trial expires in exactly 7 or 3 days.
+
+    Runs daily. Uses metadata flags to ensure each window fires at most once
+    per subscription, so a user won't receive duplicate reminders even if the
+    job overlaps near a boundary.
+    """
+    from app.db.models.subscription import Subscription, SubscriptionStatus
+    from app.db.models.user import User
+    from app.common.services.email_service import send_subscription_expiring_email
+
+    NOTIFY_AT_DAYS = (7, 3)
+    now = datetime.now(timezone.utc)
+    sent = 0
+
+    subs = await Subscription.filter(
+        status__in=[SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING],
+    )
+
+    for sub in subs:
+        is_trial = sub.status == SubscriptionStatus.TRIALING
+        end = sub.trial_ends_at if is_trial else sub.current_period_end
+        if not end:
+            continue
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+
+        delta = end - now
+        days_remaining = delta.days
+
+        if days_remaining not in NOTIFY_AT_DAYS:
+            continue
+
+        meta = sub.metadata if isinstance(sub.metadata, dict) else {}
+        notif_key = f"expiry_notified_{days_remaining}d"
+        if meta.get(notif_key):
+            continue
+
+        user = await User.get_or_none(id=sub.user_id, deleted_at=None)
+        if not user:
+            continue
+
+        plan_name = sub.plan.value.title()
+        billing_url = f"{settings.FRONTEND_URL}/billing"
+
+        try:
+            await send_subscription_expiring_email(
+                user.email,
+                plan_name=plan_name,
+                days_left=days_remaining,
+                expires_at=end,
+                renew_url=billing_url,
+                is_trial=is_trial,
+            )
+            sub.metadata = {**meta, notif_key: now.isoformat()}
+            await sub.save()
+            sent += 1
+            logger.info(
+                f"expiry reminder sent: user={user.id} plan={plan_name} "
+                f"days_left={days_remaining} trial={is_trial}"
+            )
+        except Exception as exc:
+            logger.warning(f"subscription_expiry_sweep: email failed for user {user.id}: {exc}")
+
+    if sent:
+        logger.info(f"subscription_expiry_sweep: sent {sent} expiry reminder(s)")
+
+
 __all__ = [
     "get_scheduler",
     "register_jobs",
@@ -191,4 +268,5 @@ __all__ = [
     "stop",
     "reminder_sweep",
     "expiration_sweep",
+    "subscription_expiry_sweep",
 ]

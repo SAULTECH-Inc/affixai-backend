@@ -19,13 +19,10 @@ Endpoints:
 from __future__ import annotations
 
 import re
-import uuid
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
 from loguru import logger
 
 from tortoise.expressions import Q
@@ -55,11 +52,6 @@ from app.models.custom_vault_schemas import (
 router = APIRouter()
 
 
-# Vercel's /var/task filesystem is read-only; use /tmp when running there.
-import os as _os
-_uploads_base = Path("/tmp/uploads") if _os.environ.get("VERCEL") else Path(__file__).resolve().parents[3] / "uploads"
-CUSTOM_FILES_DIR = _uploads_base / "custom_vault"
-CUSTOM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _slugify(name: str) -> str:
@@ -568,19 +560,14 @@ async def upload_field_file(
     if len(raw) > 25 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large (max 25MB)")
 
-    # Save to disk under a UUID name so two users can't collide.
-    safe_ext = Path(file.filename or "").suffix.lower()
-    if len(safe_ext) > 10:
-        safe_ext = ""
-    storage_name = f"{user.id}_{field_id}_{uuid.uuid4().hex}{safe_ext}"
-    out_path = CUSTOM_FILES_DIR / storage_name
-    out_path.write_bytes(raw)
+    # Upload to storage (Cloudinary in production, local disk in dev).
+    from app.common.services.local_storage import save_bytes as storage_save
+    stored = storage_save(raw, file.filename or "upload.bin", folder="custom_vault")
 
-    rel_path = f"custom_vault/{storage_name}"
     # Reuse existing data_vault storage so auto-affix sees it like any field.
     # `section` was already loaded + permission-checked above.
     segment_value = _segment_key(section)
-    encrypted = encrypt(rel_path)
+    encrypted = encrypt(stored["url"])
     existing = await DataVault.get_or_none(
         user_id=user.id, segment=segment_value, field_name=fld.key
     )
@@ -611,7 +598,7 @@ async def upload_field_file(
 
     return FileUploadOut(
         field_id=fld.id,
-        original_filename=file.filename or storage_name,
+        original_filename=file.filename or "upload.bin",
         size_bytes=len(raw),
         mime_type=file.content_type or "application/octet-stream",
         download_url=f"/api/v1/data-vault/custom/fields/{fld.id}/file",
@@ -641,11 +628,10 @@ async def download_field_file(
     if not row:
         raise HTTPException(status_code=404, detail="No file uploaded for this field")
     try:
-        rel_path = decrypt(row.encrypted_value)
+        file_url = decrypt(row.encrypted_value)
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Could not decrypt file path") from exc
-    full = _uploads_base / rel_path
-    if not full.exists():
-        raise HTTPException(status_code=404, detail="File missing on disk")
-    original = (row.metadata or {}).get("original_filename") or full.name
-    return FileResponse(path=str(full), filename=original)
+    meta = row.metadata if isinstance(row.metadata, dict) else {}
+    original = meta.get("original_filename") or "download"
+    from app.common.services.local_storage import serve_file
+    return serve_file(file_url, filename=original)

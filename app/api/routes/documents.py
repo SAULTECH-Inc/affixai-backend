@@ -17,7 +17,6 @@ from fastapi import (
 )
 from loguru import logger
 
-from fastapi.responses import FileResponse
 
 from app.common.deps import get_current_user, require_active_subscription
 from app.common.services import fastapi_internal
@@ -28,7 +27,11 @@ from app.common.services.email_service import (
     send_document_shared_email,
     send_signed_document_email,
 )
-from app.common.services.local_storage import UPLOADS_ROOT, save_bytes as local_save_bytes
+from app.common.services.local_storage import (
+    save_bytes as local_save_bytes,
+    fetch_file_bytes,
+    serve_file,
+)
 from app.common.services.s3_service import s3_service
 from app.core.encryption import decrypt
 from app.db.models.audit_log import AuditAction
@@ -546,16 +549,10 @@ async def stream_document_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     target = doc.completed_file_url or doc.file_url
-    if not target or not target.startswith("local://"):
+    if not target:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No local file for this document",
-        )
-    key = target.replace("local://", "", 1)
-    path = UPLOADS_ROOT / key
-    if not path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk"
+            detail="No file available for this document",
         )
 
     await log_audit(
@@ -565,8 +562,8 @@ async def stream_document_file(
         entity_id=str(doc.id),
     )
 
-    return FileResponse(
-        str(path),
+    return serve_file(
+        target,
         media_type=doc.file_mime_type or "application/pdf",
         filename=doc.original_file_name or "document.pdf",
     )
@@ -608,17 +605,12 @@ async def download_document_as(
 
     # Resolve the source bytes — prefer the completed/signed version if any.
     url = doc.completed_file_url or doc.file_url
-    if not url or not url.startswith("local://"):
+    if not url:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No local file for this document",
+            detail="No file available for this document",
         )
-    path = UPLOADS_ROOT / url.replace("local://", "", 1)
-    if not path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk"
-        )
-    source_bytes = path.read_bytes()
+    source_bytes = await fetch_file_bytes(url)
 
     src = detect_format(doc.original_file_name, doc.file_mime_type)
     if src is None:
@@ -688,22 +680,20 @@ async def extract_document_text(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     url = doc.completed_file_url or doc.file_url
-    if not url or not url.startswith("local://"):
+    if not url:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No local file"
+            status_code=status.HTTP_404_NOT_FOUND, detail="No file available"
         )
-    path = UPLOADS_ROOT / url.replace("local://", "", 1)
-    if not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
+    file_bytes = await fetch_file_bytes(url)
 
     src = detect_format(doc.original_file_name, doc.file_mime_type)
     text = ""
     if src and src.value == "pdf":
-        text = extract_text_from_pdf(path.read_bytes(), ocr_fallback=True)
+        text = extract_text_from_pdf(file_bytes, ocr_fallback=True)
     elif src and src.value == "docx":
-        text = extract_text_from_docx(path.read_bytes())
+        text = extract_text_from_docx(file_bytes)
     elif src and src.value in ("txt", "md"):
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = file_bytes.decode("utf-8", errors="replace")
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -733,17 +723,12 @@ async def stream_document_original(
     doc = await Document.get_or_none(id=document_id, deleted_at=None)
     if not doc or doc.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    if not doc.file_url or not doc.file_url.startswith("local://"):
+    if not doc.file_url:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No local file"
+            status_code=status.HTTP_404_NOT_FOUND, detail="No file available"
         )
-    path = UPLOADS_ROOT / doc.file_url.replace("local://", "", 1)
-    if not path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk"
-        )
-    return FileResponse(
-        str(path),
+    return serve_file(
+        doc.file_url,
         media_type="application/pdf",
         filename=doc.original_file_name or "document.pdf",
     )
@@ -763,17 +748,11 @@ async def restamp_document(
     doc = await Document.get_or_none(id=document_id, deleted_at=None)
     if not doc or doc.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    if not doc.file_url or not doc.file_url.startswith("local://"):
+    if not doc.file_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Original PDF unavailable"
         )
-
-    src = UPLOADS_ROOT / doc.file_url.replace("local://", "", 1)
-    if not src.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Original file missing on disk"
-        )
-    pdf_bytes = src.read_bytes()
+    pdf_bytes = await fetch_file_bytes(doc.file_url)
 
     placements = [
         Placement(
@@ -894,19 +873,12 @@ async def email_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     target = doc.completed_file_url or doc.file_url
-    if not target or not target.startswith("local://"):
+    if not target:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Document file isn't available to send",
         )
-    path = UPLOADS_ROOT / target.replace("local://", "", 1)
-    if not path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document file missing on disk",
-        )
-
-    pdf_bytes = path.read_bytes()
+    pdf_bytes = await fetch_file_bytes(target)
     document_name = doc.original_file_name or "document.pdf"
     sender_name = (
         " ".join(filter(None, [user.first_name, user.last_name])).strip()

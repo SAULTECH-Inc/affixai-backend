@@ -5,16 +5,14 @@ import base64
 import io
 import re
 from datetime import datetime, timezone
-from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
 from PIL import Image
 
 from app.common.deps import get_current_user
 from app.common.services.audit_service import log_audit
-from app.common.services.local_storage import UPLOADS_ROOT, save_bytes as local_save_bytes
+from app.common.services.local_storage import save_bytes as local_save_bytes, serve_file
 from app.db.models.audit_log import AuditAction
 from app.db.models.passport_photo import PassportPhoto
 from app.db.models.user import User
@@ -147,13 +145,9 @@ async def stream_photo(
     photo = await PassportPhoto.get_or_none(
         id=photo_id, user_id=user.id, deleted_at=None
     )
-    if not photo or not photo.photo_url.startswith("local://"):
+    if not photo or not photo.photo_url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-    key = photo.photo_url.replace("local://", "", 1)
-    path: Path = UPLOADS_ROOT / key
-    if not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Missing on disk")
-    return FileResponse(str(path))
+    return serve_file(photo.photo_url, media_type="image/png", filename="passport-photo.png")
 
 
 @router.put("/{photo_id}", response_model=PassportPhotoOut)

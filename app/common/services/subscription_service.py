@@ -15,10 +15,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import UUID
 
 from loguru import logger
 
 from app.core.config import settings
+from app.db.models.invoice import Invoice, InvoiceStatus
 from app.db.models.subscription import Subscription, SubscriptionPlan, SubscriptionStatus
 from app.db.models.user import User
 
@@ -245,9 +247,6 @@ async def apply_normalized_invoice(norm: Any) -> None:
     If we can't resolve the user_id, log a warning and bail — orphan invoices
     aren't useful to surface in the UI.
     """
-    from uuid import UUID
-    from app.db.models.invoice import Invoice, InvoiceStatus
-
     user_id: UUID | None = None
     if norm.user_id:
         try:
@@ -282,6 +281,7 @@ async def apply_normalized_invoice(norm: Any) -> None:
     )
     if existing:
         was_paid = existing.status == InvoiceStatus.PAID
+        was_failed = existing.status == InvoiceStatus.FAILED
         existing.status = status
         existing.amount = norm.amount
         existing.currency = norm.currency
@@ -294,11 +294,11 @@ async def apply_normalized_invoice(norm: Any) -> None:
         logger.info(
             f"invoice updated: {norm.provider}:{norm.provider_invoice_id} → {status}"
         )
-        # Newly-paid (not already-paid) → accrue referral commission. The
-        # service handles idempotency on invoice_id, so it's safe even if
-        # the webhook fires twice for the same invoice.
         if status == InvoiceStatus.PAID and not was_paid:
             await _accrue_referral_commission(existing)
+            await _send_invoice_email(user_id, existing, norm, kind="paid")
+        elif status == InvoiceStatus.FAILED and not was_failed:
+            await _send_invoice_email(user_id, existing, norm, kind="failed")
         return
 
     created = await Invoice.create(
@@ -318,13 +318,61 @@ async def apply_normalized_invoice(norm: Any) -> None:
         f"invoice created: {norm.provider}:{norm.provider_invoice_id} "
         f"user={user_id} amount={norm.amount} {norm.currency} → {status}"
     )
-    # If this is a paid invoice, accrue referral commission. Idempotent on
-    # invoice_id in record_commission_event.
     if status == InvoiceStatus.PAID:
         await _accrue_referral_commission(created)
+        await _send_invoice_email(user_id, created, norm, kind="paid")
+    elif status == InvoiceStatus.FAILED:
+        await _send_invoice_email(user_id, created, norm, kind="failed")
 
 
-async def _accrue_referral_commission(invoice: "Invoice") -> None:
+async def _send_invoice_email(
+    user_id: UUID,
+    invoice: Invoice,
+    norm: Any,
+    *,
+    kind: str,  # "paid" | "failed"
+) -> None:
+    """Best-effort billing email — never raises so invoice processing is safe."""
+    try:
+        from app.common.services.email_service import (
+            send_subscription_activated_email,
+            send_payment_failed_email,
+        )
+
+        user = await User.get_or_none(id=user_id, deleted_at=None)
+        if not user:
+            return
+
+        sub = await Subscription.get_or_none(user_id=user_id)
+        plan_name = sub.plan.value.title() if sub else "Pro"
+        amount = norm.amount or invoice.amount
+        currency = (norm.currency or invoice.currency or "USD").upper()
+        invoice_url = norm.hosted_url or norm.pdf_url or invoice.hosted_url or invoice.pdf_url
+
+        if kind == "paid":
+            await send_subscription_activated_email(
+                user.email,
+                plan_name=plan_name,
+                amount=amount,
+                currency=currency,
+                billing_period_end=sub.current_period_end if sub else None,
+                invoice_url=invoice_url,
+            )
+        elif kind == "failed":
+            billing_url = f"{settings.FRONTEND_URL}/billing"
+            await send_payment_failed_email(
+                user.email,
+                plan_name=plan_name,
+                amount=amount,
+                currency=currency,
+                update_url=billing_url,
+                invoice_url=invoice_url,
+            )
+    except Exception as exc:
+        logger.warning(f"billing email ({kind}) failed for user {user_id}: {exc}")
+
+
+async def _accrue_referral_commission(invoice: Invoice) -> None:
     """Best-effort: failures here should NEVER prevent the invoice itself
     from being persisted, so we swallow + log."""
     try:

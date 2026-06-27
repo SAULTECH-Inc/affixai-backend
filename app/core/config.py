@@ -40,12 +40,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
-    # SMTP / Email
-    SMTP_HOST: str = "localhost"
-    SMTP_PORT: int = 587
-    SMTP_USERNAME: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_USE_TLS: bool = True
+    # Email — Resend
+    RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@example.com"
     EMAIL_FROM_NAME: str = "AI Document Signer"
     FRONTEND_URL: str = "http://localhost:3001"
@@ -71,6 +67,11 @@ class Settings(BaseSettings):
     # Comma-separated list of emails that are auto-promoted to SUPER_ADMIN on
     # register / login. Empty = nobody is admin (set via SQL instead).
     SUPER_ADMIN_EMAILS: str = ""
+
+    # ---- Cloudinary (file storage) -----------------------------------------
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
     # ---- Cloud storage integrations (Phase E2) -----------------------------
     # Each provider's OAuth client credentials live in their own env block.
@@ -227,10 +228,8 @@ def _validate_production(s: "Settings") -> list[str]:
     if s.DEBUG:
         problems.append("DEBUG must be false in production")
 
-    if s.SMTP_HOST in ("localhost", "127.0.0.1"):
-        problems.append(
-            "SMTP_HOST is localhost — outbound email won't work in production"
-        )
+    if not s.RESEND_API_KEY:
+        problems.append("RESEND_API_KEY is not set — outbound email won't work in production")
 
     if s.EMAIL_FROM.endswith("@example.com"):
         problems.append("EMAIL_FROM is using the placeholder @example.com")
