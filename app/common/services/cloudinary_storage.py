@@ -85,6 +85,23 @@ def signed_download_url(url: str, filename: str = "file") -> str:
     public_id = m.group(3)
     fmt = m.group(4) or ""  # e.g. "pdf"
 
+    if resource_type == "raw":
+        # Cloudinary raw resources: the file extension is part of the public_id
+        # itself (e.g. "affixai/to-sign/abc.pdf"), not a separate format field.
+        # Calling private_download_url with public_id="abc" + format="pdf" returns
+        # 404 because Cloudinary stores it as public_id="abc.pdf".
+        # Fix: reconstruct the full public_id with the extension and pass format="".
+        full_public_id = f"{public_id}.{fmt}" if fmt else public_id
+        return cloudinary.utils.private_download_url(
+            full_public_id,
+            "",  # format is part of public_id for raw resources
+            resource_type="raw",
+            type="upload",
+            expires_at=int(time.time()) + 3600,
+            attachment=filename,
+        )
+
+    # image / video: public_id does NOT include the extension; format is separate.
     return cloudinary.utils.private_download_url(
         public_id,
         fmt,
