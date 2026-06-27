@@ -34,14 +34,31 @@ def _resource_type_for(filename: str) -> str:
 def save_bytes(data: bytes, original_file_name: str, folder: str = "documents") -> dict[str, str]:
     """Upload bytes to Cloudinary. Returns {key, url} matching local_storage's interface."""
     _cfg()
+    ext = original_file_name.rsplit(".", 1)[-1].lower() if "." in original_file_name else ""
     resource_type = _resource_type_for(original_file_name)
-    result = cloudinary.uploader.upload(
-        data,
-        folder=f"affixai/{folder}",
-        resource_type=resource_type,
-        use_filename=False,
-    )
+
+    upload_opts: dict = {
+        "folder": f"affixai/{folder}",
+        "resource_type": resource_type,
+        "use_filename": False,
+    }
+    # For raw (PDF) uploads Cloudinary does not automatically append the file
+    # extension to the public_id.  Without it the stored URL has no extension,
+    # which later breaks signed URL generation (trailing dot in the URL).
+    if resource_type == "raw" and ext:
+        upload_opts["format"] = ext
+
+    result = cloudinary.uploader.upload(data, **upload_opts)
     return {"key": result["public_id"], "url": result["secure_url"]}
+
+
+# URL regex — captures resource_type, optional version, public_id, optional extension.
+_CL_URL_RE = re.compile(
+    r"res\.cloudinary\.com/[^/]+/(image|raw|video)/upload/"
+    r"(?:v(\d+)/)?"      # optional version group (without 'v' prefix)
+    r"(.+?)"             # public_id (non-greedy)
+    r"(?:\.([^./]+))?$"  # optional extension
+)
 
 
 def signed_download_url(url: str, filename: str = "file") -> str:
@@ -53,26 +70,32 @@ def signed_download_url(url: str, filename: str = "file") -> str:
     """
     _cfg()
 
-    # Parse resource_type, public_id, and extension from the stored URL.
-    m = re.search(
-        r"res\.cloudinary\.com/[^/]+/(image|raw|video)/upload/(?:v\d+/)?(.+?)(?:\.([^./]+))?$",
-        url,
-    )
+    m = _CL_URL_RE.search(url)
     if not m:
         return url  # not a recognisable Cloudinary URL — return as-is
 
     resource_type = m.group(1)
-    public_id = m.group(2)
-    fmt = m.group(3) or ""
+    version = m.group(2)    # digit string e.g. "1782583566", or None
+    public_id = m.group(3)
+    fmt = m.group(4) or ""  # e.g. "pdf", or "" when URL has no extension
 
-    signed, _ = cloudinary.utils.cloudinary_url(
-        public_id,
-        resource_type=resource_type,
-        type="upload",
-        sign_url=True,
-        format=fmt,
-        attachment=filename,
-    )
+    opts: dict = {
+        "resource_type": resource_type,
+        "type": "upload",
+        "sign_url": True,
+        "attachment": filename,
+    }
+    # Pass the original version so the signed URL keeps the correct path.
+    # Without it the SDK defaults to v1, which resolves to a different (wrong)
+    # resource version and returns 404.
+    if version:
+        opts["version"] = version
+    # Only pass format when it's non-empty.  An empty string causes the SDK to
+    # append a bare '.' to the public_id (e.g. "file.") which returns 404.
+    if fmt:
+        opts["format"] = fmt
+
+    signed, _ = cloudinary.utils.cloudinary_url(public_id, **opts)
     return signed
 
 
