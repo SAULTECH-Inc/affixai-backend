@@ -70,8 +70,14 @@ async def fetch_file_bytes(url: str) -> bytes:
     """Fetch file bytes from a local:// pseudo-URL or a remote https:// URL."""
     if url.startswith("https://") or url.startswith("http://"):
         import httpx
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(url)
+        fetch_url = url
+        if "cloudinary.com" in url:
+            # Raw Cloudinary URLs 401 on accounts with any delivery restriction.
+            # Generate a time-limited, API-signed URL before fetching.
+            from app.common.services import cloudinary_storage
+            fetch_url = cloudinary_storage.signed_download_url(url)
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(fetch_url)
             resp.raise_for_status()
             return resp.content
     # Local — strip local:// prefix or treat as bare relative key
