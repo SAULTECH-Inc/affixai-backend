@@ -132,7 +132,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Database (Tortoise ORM)
-register_db(app, generate_schemas=settings.DEBUG)
+# Never auto-generate schemas on Vercel: every cold-start would open extra
+# connections just to run CREATE TABLE IF NOT EXISTS, pushing the serverless
+# pool over max_connections. Schema must be applied via aerich migrations
+# before deploying; local dev can keep generate_schemas=True for convenience.
+_generate_schemas = settings.DEBUG and not _os.environ.get("VERCEL")
+register_db(app, generate_schemas=_generate_schemas)
 
 # Include routers
 app.include_router(health.router, prefix="/health", tags=["Health"])
