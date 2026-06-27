@@ -62,6 +62,24 @@ from app.models.document_schemas import (
 router = APIRouter()
 
 
+def _resolve_download_url(target: str, filename: str = "file", expires_in: int = 300) -> str:
+    """Return a URL the client can use to download a file.
+
+    Handles all three storage backends:
+      - Cloudinary (https://res.cloudinary.com/…): server-signed URL so it
+        works even when the account has Strict Transformations enabled.
+      - S3 keys / s3:// URLs: presigned S3 download URL.
+      - local:// pseudo-URLs: returned unchanged (caller must use /file endpoint).
+    """
+    if target.startswith("https://") or target.startswith("http://"):
+        if "cloudinary.com" in target:
+            from app.common.services import cloudinary_storage
+            return cloudinary_storage.signed_download_url(target, filename=filename)
+        return target
+    # S3 key or s3:// URL
+    return s3_service().get_presigned_url(target, expires_in=expires_in)
+
+
 def _to_out(doc: Document) -> DocumentOut:
     return DocumentOut.model_validate(doc, from_attributes=True)
 
@@ -303,14 +321,18 @@ async def download_document(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     target = doc.completed_file_url or doc.file_url
-    url = s3_service().get_presigned_url(target, expires_in=300)
+    download_url = _resolve_download_url(
+        target,
+        filename=doc.original_file_name or "document.pdf",
+        expires_in=300,
+    )
     await log_audit(
         user_id=user.id,
         action=AuditAction.DOCUMENT_DOWNLOADED,
         entity_type="document",
         entity_id=str(doc.id),
     )
-    return DownloadUrlOut(download_url=url)
+    return DownloadUrlOut(download_url=download_url)
 
 
 @router.get("", response_model=list[DocumentOut])
@@ -508,7 +530,10 @@ async def auto_sign(
 
     return AutoSignOut(
         document_id=doc.id,
-        download_url=stored["url"],
+        download_url=_resolve_download_url(
+            stored["url"],
+            filename=f"signed-{file.filename or 'document.pdf'}",
+        ),
         report=AutoSignReport(
             fields_filled=[
                 StampedFieldOut(
@@ -807,7 +832,10 @@ async def restamp_document(
 
     return RestampOut(
         document_id=doc.id,
-        download_url=stored["url"],
+        download_url=_resolve_download_url(
+            stored["url"],
+            filename=f"signed-{doc.original_file_name or 'document.pdf'}",
+        ),
         placed=outcome.placed,
         failed=outcome.failed,
         errors=outcome.errors,

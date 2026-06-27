@@ -80,11 +80,19 @@ async def fetch_file_bytes(url: str) -> bytes:
 
 
 def serve_file(url: str, media_type: str = "application/octet-stream", filename: str = "file") -> "Response":
-    """Return the right Response type: RedirectResponse for remote, FileResponse for local."""
+    """Return the right Response type: RedirectResponse for remote, FileResponse for local.
+
+    For Cloudinary URLs a server-signed URL is generated so the redirect works
+    even on accounts that have Strict Transformations enabled.
+    """
     from fastapi import HTTPException, status as http_status
     from fastapi.responses import FileResponse, RedirectResponse
 
     if url.startswith("https://") or url.startswith("http://"):
+        if "cloudinary.com" in url:
+            from app.common.services import cloudinary_storage
+            signed = cloudinary_storage.signed_download_url(url, filename=filename)
+            return RedirectResponse(signed)
         return RedirectResponse(url)
 
     key = url.replace("local://", "", 1)
