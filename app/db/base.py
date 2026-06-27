@@ -49,7 +49,7 @@ def _connections_config() -> dict:
     On Vercel (serverless) each cold-start creates its own asyncpg pool.
     If every instance uses the default pool size (~10) a handful of concurrent
     invocations will exhaust the database's max_connections and start returning
-    TooManyConnectionsError. We cap the pool at 2 connections per instance to
+    TooManyConnectionsError. We cap the pool at 1 connection per instance to
     keep the total low even under concurrent cold-starts.
     """
     url = settings.DATABASE_URL
@@ -72,7 +72,7 @@ def _connections_config() -> dict:
         "password": p.password or "",
         "database": (p.path or "/postgres").lstrip("/"),
         "minsize": 1,
-        "maxsize": 2,  # 2 connections per Vercel instance is enough
+        "maxsize": 1,  # 1 connection per Vercel instance prevents pool exhaustion
     }
 
     # Most hosted Postgres providers (Neon, Supabase, Railway) require SSL but
