@@ -6,6 +6,7 @@ Activated automatically when CLOUDINARY_API_KEY is set in config.
 from __future__ import annotations
 
 import re
+import time
 
 import cloudinary
 import cloudinary.uploader
@@ -62,11 +63,16 @@ _CL_URL_RE = re.compile(
 
 
 def signed_download_url(url: str, filename: str = "file") -> str:
-    """Return a server-signed Cloudinary URL the browser can download directly.
+    """Return a time-limited, API-authenticated Cloudinary download URL.
 
-    Handles both /raw/upload/ and /image/upload/ URLs. Signing makes the URL
-    work even when the account has Strict Transformations enabled, and forces
-    the browser to download rather than render the file inline.
+    Uses private_download_url() which routes through Cloudinary's API server
+    (not the CDN) and embeds the API key + HMAC signature + expiry directly in
+    the query string.  This bypasses ALL CDN-level delivery restrictions —
+    Strict Transformations, account security settings, restricted delivery —
+    because the request is authenticated at the API layer, not the CDN layer.
+
+    The generated URL is valid for 1 hour and can be followed by any client
+    without additional credentials.
     """
     _cfg()
 
@@ -75,28 +81,18 @@ def signed_download_url(url: str, filename: str = "file") -> str:
         return url  # not a recognisable Cloudinary URL — return as-is
 
     resource_type = m.group(1)
-    version = m.group(2)    # digit string e.g. "1782583566", or None
+    # group(2) is the version — not needed for private_download_url
     public_id = m.group(3)
-    fmt = m.group(4) or ""  # e.g. "pdf", or "" when URL has no extension
+    fmt = m.group(4) or ""  # e.g. "pdf"
 
-    opts: dict = {
-        "resource_type": resource_type,
-        "type": "upload",
-        "sign_url": True,
-        "attachment": filename,
-    }
-    # Pass the original version so the signed URL keeps the correct path.
-    # Without it the SDK defaults to v1, which resolves to a different (wrong)
-    # resource version and returns 404.
-    if version:
-        opts["version"] = version
-    # Only pass format when it's non-empty.  An empty string causes the SDK to
-    # append a bare '.' to the public_id (e.g. "file.") which returns 404.
-    if fmt:
-        opts["format"] = fmt
-
-    signed, _ = cloudinary.utils.cloudinary_url(public_id, **opts)
-    return signed
+    return cloudinary.utils.private_download_url(
+        public_id,
+        fmt,
+        resource_type=resource_type,
+        type="upload",
+        expires_at=int(time.time()) + 3600,
+        attachment=filename,
+    )
 
 
 def delete(public_id: str) -> None:
