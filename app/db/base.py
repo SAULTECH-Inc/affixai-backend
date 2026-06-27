@@ -75,12 +75,21 @@ def _connections_config() -> dict:
         "maxsize": 2,  # 2 connections per Vercel instance is enough
     }
 
-    # Most hosted Postgres providers (Neon, Supabase, Railway) require SSL.
+    # Most hosted Postgres providers (Neon, Supabase, Railway) require SSL but
+    # use their own CA chains (self-signed or intermediate), so ssl=True (which
+    # enforces full certificate verification) always fails.  asyncpg 0.27+
+    # accepts ssl="require" which encrypts the connection without verifying the
+    # certificate chain — the right default for serverless / hosted databases.
     if p.query:
         sslmode = _parse_qs(p.query).get("sslmode", [""])[0]
-        creds["ssl"] = sslmode not in ("disable", "allow", "prefer", "")
+        if sslmode == "disable":
+            creds["ssl"] = False
+        elif sslmode in ("verify-ca", "verify-full"):
+            creds["ssl"] = True   # strict verification — user opted in explicitly
+        else:
+            creds["ssl"] = "require"   # encrypt but don't verify chain
     elif p.hostname and p.hostname not in ("localhost", "127.0.0.1", "::1"):
-        creds["ssl"] = True  # assume SSL for any remote host
+        creds["ssl"] = "require"  # remote host — require encryption, skip chain verify
 
     return {
         "default": {
