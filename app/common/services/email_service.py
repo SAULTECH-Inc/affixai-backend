@@ -11,7 +11,6 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-import resend
 from loguru import logger
 
 from app.core.config import settings
@@ -179,6 +178,8 @@ def _send_sync(
     attachments: list[tuple[str, bytes, str]] | None = None,
 ) -> None:
     """Synchronous Resend call — run in a thread via asyncio.to_thread()."""
+    import resend  # lazy import so a missing package won't kill startup
+
     resend.api_key = settings.RESEND_API_KEY
 
     params: dict[str, Any] = {
