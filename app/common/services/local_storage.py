@@ -6,6 +6,7 @@ so the switch is transparent.
 """
 from __future__ import annotations
 
+import os
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -13,7 +14,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from starlette.responses import Response
 
-UPLOADS_ROOT = Path("uploads")
+# Vercel's /var/task filesystem is read-only; only /tmp is writable.
+UPLOADS_ROOT = Path("/tmp/uploads") if os.environ.get("VERCEL") else Path("uploads")
 
 
 def _use_cloudinary() -> bool:
