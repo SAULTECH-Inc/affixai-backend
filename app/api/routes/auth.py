@@ -133,7 +133,11 @@ async def register(payload: RegisterDto, request: Request) -> AuthResponse:
 
     access, refresh = _issue_tokens(user)
 
-    await send_verification_email(user.email, verification_token)
+    try:
+        await send_verification_email(user.email, verification_token)
+    except Exception as exc:
+        logger.warning(f"verification email failed for {user.email}: {exc}")
+
     await log_audit(
         user_id=user.id,
         action=AuditAction.USER_CREATED,
@@ -202,7 +206,10 @@ async def forgot_password(payload: ForgotPasswordDto) -> MessageOut:
         user.reset_password_token = token
         user.reset_password_expires = datetime.now(timezone.utc) + timedelta(hours=1)
         await user.save()
-        await send_password_reset_email(user.email, token)
+        try:
+            await send_password_reset_email(user.email, token)
+        except Exception as exc:
+            logger.warning(f"password reset email failed for {user.email}: {exc}")
     return MessageOut(message="If that email exists, a reset link has been sent")
 
 
