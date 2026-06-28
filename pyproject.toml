@@ -38,6 +38,8 @@ dependencies = [
     "python-Levenshtein==0.25.0",
     # Scheduler
     "apscheduler",
+    # CSV / Excel parsing for bulk invite file uploads
+    "openpyxl>=3.1.0",
     # Cloudinary file storage
     "cloudinary",
     # Google Drive cloud export

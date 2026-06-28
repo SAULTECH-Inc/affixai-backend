@@ -24,6 +24,44 @@ class DeclineDto(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
 
 
+class RejectDto(BaseModel):
+    """Reject-back — routes the document to a prior or specific signer for fixes.
+
+    Unlike DeclineDto (which halts the workflow), reject keeps the workflow
+    alive and re-activates the target participant.
+    """
+    reason: str | None = Field(default=None, max_length=1000)
+    # UUID of the participant to route back to.  When omitted the workflow
+    # service routes back to the previous signer in sequence_order order.
+    route_to_participant_id: UUID | None = None
+
+
+class GuestCommentCreateDto(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+    # Optional page-anchoring (all three or none)
+    page: int | None = Field(default=None, ge=0)
+    x: float | None = None
+    y: float | None = None
+    field_key: str | None = Field(default=None, max_length=120)  # e.g. "first_name"
+
+
+class GuestCommentOut(BaseModel):
+    id: UUID
+    document_id: UUID
+    participant_id: UUID | None
+    author_name: str | None
+    author_email: str | None
+    body: str
+    page: int | None
+    x: float | None
+    y: float | None
+    field_key: str | None
+    resolved: bool
+    resolved_at: datetime | None
+    created_at: datetime
+    is_mine: bool = False  # True when the caller is the comment author
+
+
 class WorkflowStatusOut(BaseModel):
     routing_status: RoutingStatus
     routing_mode: RoutingMode

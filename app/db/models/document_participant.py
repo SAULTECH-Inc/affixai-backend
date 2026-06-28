@@ -34,7 +34,8 @@ class ParticipantStatus(str, Enum):
     VIEWED = "viewed"        # opened the document via magic link or app
     SIGNED = "signed"        # signed (only valid for SIGNER role)
     APPROVED = "approved"    # reviewer approved
-    DECLINED = "declined"    # signer/reviewer declined
+    DECLINED = "declined"    # signer/reviewer declined — halts workflow
+    REJECTED = "rejected"    # sent back for changes — workflow stays open
     REVOKED = "revoked"      # owner revoked their invitation
 
 

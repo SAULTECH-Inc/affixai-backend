@@ -31,6 +31,7 @@ from app.common.services.workflow import (
     is_participant_actionable,
 )
 from app.common.services.local_storage import save_bytes as storage_save, fetch_file_bytes, serve_file
+from app.db.models.document_comment import DocumentComment
 from app.core.config import settings
 from app.db.models.audit_log import AuditAction
 from app.db.models.document import Document, RoutingMode, RoutingStatus
@@ -46,8 +47,11 @@ from app.db.models.user import User
 from app.models.auth_schemas import MessageOut
 from app.models.workflow_schemas import (
     DeclineDto,
+    GuestCommentCreateDto,
+    GuestCommentOut,
     GuestDocumentOut,
     GuestParticipantOut,
+    RejectDto,
     SendForSignatureDto,
     SigningTargetIn,
     SigningTargetOut,
@@ -481,10 +485,23 @@ async def guest_sign(
     """
     doc, p = await _get_participant_by_token(invite_token)
     if not await is_participant_actionable(doc, p):
-        # Either the workflow has moved past them, or in SEQUENTIAL mode
-        # it's not their turn yet.
         raise HTTPException(
             403, "It's not your turn to sign yet, or the workflow has closed."
+        )
+
+    # Block signing if this participant still has unresolved comments they
+    # authored — they must remove them before submitting.
+    unresolved = await DocumentComment.filter(
+        document_id=doc.id,
+        participant_id=p.id,
+        resolved=False,
+        deleted_at=None,
+    ).count()
+    if unresolved:
+        raise HTTPException(
+            400,
+            f"You have {unresolved} unresolved comment(s). "
+            "Remove or resolve them before signing.",
         )
 
     raw = await signature_image.read()
@@ -646,6 +663,176 @@ async def guest_decline(invite_token: str, payload: DeclineDto):
         user_id=doc.user_id,
     )
     return _build_status_out(doc, snap)
+
+
+@guest_router.post("/{invite_token}/reject", response_model=WorkflowStatusOut)
+async def guest_reject(invite_token: str, payload: RejectDto):
+    """Reject-back — route the document to a previous or specified signer for fixes.
+
+    Unlike decline, this keeps the workflow alive: the current participant is
+    marked REJECTED and the target participant's status resets to INVITED so
+    they can re-sign after fixing the flagged issues.
+    """
+    doc, p = await _get_participant_by_token(invite_token)
+    if not await is_participant_actionable(doc, p):
+        raise HTTPException(403, "It is not your turn or the workflow is closed.")
+
+    # Resolve the target participant to route back to.
+    target: DocumentParticipant | None = None
+    if payload.route_to_participant_id:
+        target = await DocumentParticipant.get_or_none(
+            id=payload.route_to_participant_id,
+            document_id=doc.id,
+            deleted_at=None,
+        )
+        if not target:
+            raise HTTPException(404, "Target participant not found on this document")
+    else:
+        # Default: previous signer in sequence_order
+        all_signers = await DocumentParticipant.filter(
+            document_id=doc.id,
+            deleted_at=None,
+            sequence_order__lt=p.sequence_order,
+        ).order_by("-sequence_order")
+        target = all_signers[0] if all_signers else None
+
+    if not target or target.id == p.id:
+        raise HTTPException(
+            400,
+            "No previous participant to route back to. Use decline to halt the workflow.",
+        )
+
+    # Mark the rejecting participant as REJECTED.
+    p.status = ParticipantStatus.REJECTED
+    p.completed_at = datetime.now(timezone.utc)
+    await p.save()
+
+    # Reset the target so they can act again.
+    target.status = ParticipantStatus.INVITED
+    target.completed_at = None  # type: ignore[assignment]
+    await target.save()
+
+    # Auto-create a rejection comment so the reason is visible in the thread.
+    if payload.reason:
+        await DocumentComment.create(
+            document_id=doc.id,
+            participant_id=p.id,
+            author_name=p.name or p.email,
+            author_email=p.email,
+            body=f"[Rejection] {payload.reason}",
+        )
+
+    # Notify the target.
+    owner = await User.get_or_none(id=doc.user_id, deleted_at=None) if doc.user_id else None
+    sender_name = (
+        (" ".join(filter(None, [owner.first_name, owner.last_name])).strip() or owner.email)
+        if owner else "Someone"
+    )
+    try:
+        await send_collaboration_invite_email(
+            email=target.email,
+            document_name=doc.original_file_name or "document",
+            sender_name=sender_name,
+            role=target.role.value,
+            invite_url=_invite_url(target.invite_token),
+            personal_message=(
+                f"Changes requested by {p.name or p.email}"
+                + (f": {payload.reason}" if payload.reason else "")
+            ),
+        )
+    except Exception as exc:
+        logger.warning(f"reject-back email failed for {target.email}: {exc}")
+
+    await log_audit(
+        user_id=p.user_id,
+        action=AuditAction.DOCUMENT_SHARED,
+        entity_type="document",
+        entity_id=str(doc.id),
+        description=f"Rejected by {p.email}, routed back to {target.email}",
+        metadata={
+            "from_participant": str(p.id),
+            "to_participant": str(target.id),
+            "reason": payload.reason,
+        },
+    )
+
+    from app.common.services.workflow import snapshot as _snapshot
+    snap = await _snapshot(doc)
+    return _build_status_out(doc, snap)
+
+
+# ---- Guest comment endpoints ------------------------------------------------
+
+
+def _guest_comment_out(c: DocumentComment, caller_pid: "UUID") -> GuestCommentOut:
+    from uuid import UUID as _UUID
+    return GuestCommentOut(
+        id=c.id,
+        document_id=c.document_id,
+        participant_id=c.participant_id,
+        author_name=c.author_name,
+        author_email=c.author_email,
+        body=c.body,
+        page=c.page,
+        x=c.x,
+        y=c.y,
+        field_key=c.field_key,
+        resolved=c.resolved,
+        resolved_at=c.resolved_at,
+        created_at=c.created_at,
+        is_mine=(c.participant_id == caller_pid),
+    )
+
+
+@guest_router.get("/{invite_token}/comments", response_model=list[GuestCommentOut])
+async def guest_list_comments(invite_token: str):
+    doc, p = await _get_participant_by_token(invite_token)
+    rows = await DocumentComment.filter(
+        document_id=doc.id, deleted_at=None
+    ).order_by("created_at")
+    return [_guest_comment_out(c, p.id) for c in rows]
+
+
+@guest_router.post(
+    "/{invite_token}/comments",
+    response_model=GuestCommentOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def guest_add_comment(invite_token: str, payload: GuestCommentCreateDto):
+    doc, p = await _get_participant_by_token(invite_token)
+    coord_set = sum(v is not None for v in (payload.page, payload.x, payload.y))
+    if coord_set not in (0, 3):
+        raise HTTPException(400, "Provide all of page/x/y for an anchored comment, or none.")
+    c = await DocumentComment.create(
+        document_id=doc.id,
+        participant_id=p.id,
+        author_name=p.name or p.email,
+        author_email=p.email,
+        body=payload.body.strip(),
+        page=payload.page,
+        x=payload.x,
+        y=payload.y,
+        field_key=payload.field_key,
+    )
+    return _guest_comment_out(c, p.id)
+
+
+@guest_router.delete(
+    "/{invite_token}/comments/{comment_id}",
+    response_model=MessageOut,
+)
+async def guest_delete_comment(invite_token: str, comment_id: "UUID"):
+    doc, p = await _get_participant_by_token(invite_token)
+    c = await DocumentComment.get_or_none(
+        id=comment_id, document_id=doc.id, deleted_at=None
+    )
+    if not c:
+        raise HTTPException(404, "Comment not found")
+    if c.participant_id != p.id:
+        raise HTTPException(403, "You can only delete your own comments")
+    c.deleted_at = datetime.now(timezone.utc)
+    await c.save()
+    return MessageOut(message="Comment deleted")
 
 
 # ---- PDF stamping helper for the guest sign flow ---------------------------

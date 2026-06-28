@@ -20,7 +20,10 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from loguru import logger
 
 from app.common.deps import get_current_user
@@ -272,6 +275,132 @@ async def invite_participants_batch(
         entity_id=str(doc.id),
         description=(
             f"Batch invite: {len(result.created)} new, "
+            f"{len(result.updated)} updated, {len(result.failed)} failed"
+        ),
+    )
+    return result
+
+
+@router.post(
+    "/{document_id}/participants/import",
+    response_model=BatchInviteResultOut,
+)
+async def import_participants_file(
+    document_id: UUID,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+) -> BatchInviteResultOut:
+    """Bulk-invite from a CSV or Excel file.
+
+    Required columns (case-insensitive): Name, Email, Role, Order.
+    Role must be one of: signer, reviewer, viewer.
+    Order is an integer (1-based) used as sequence_order.
+    """
+    doc = await _get_owned_document(document_id, user)
+
+    filename = (file.filename or "").lower()
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    rows: list[dict[str, str]] = []
+    if filename.endswith(".csv"):
+        text = raw.decode("utf-8-sig", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
+        rows = [{k.strip().lower(): (v or "").strip() for k, v in r.items()} for r in reader]
+    elif filename.endswith((".xlsx", ".xls")):
+        try:
+            import openpyxl  # type: ignore[import-untyped]
+        except ImportError:
+            raise HTTPException(status_code=500, detail="openpyxl not installed")
+        wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+        ws = wb.active
+        if ws is None:
+            raise HTTPException(status_code=422, detail="Excel file has no active sheet")
+        headers: list[str] = []
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if i == 0:
+                headers = [str(c).strip().lower() if c else "" for c in row]
+            else:
+                rows.append({headers[j]: str(cell).strip() if cell is not None else ""
+                             for j, cell in enumerate(row)})
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Upload a .csv or .xlsx file.",
+        )
+
+    required = {"name", "email", "role", "order"}
+    if rows and not required.issubset(rows[0].keys()):
+        missing = required - set(rows[0].keys())
+        raise HTTPException(
+            status_code=422,
+            detail=f"Missing required column(s): {', '.join(sorted(missing))}. "
+                   f"File must have: Name, Email, Role, Order",
+        )
+
+    sender_name = (
+        " ".join(filter(None, [user.first_name, user.last_name])).strip() or user.email
+    )
+    result = BatchInviteResultOut()
+
+    for row in rows:
+        email = row.get("email", "").lower()
+        if not email or "@" not in email:
+            result.failed.append({"email": email or "(blank)", "reason": "Invalid email"})
+            continue
+
+        raw_role = row.get("role", "signer").lower()
+        try:
+            role = ParticipantRole(raw_role)
+        except ValueError:
+            result.failed.append({"email": email, "reason": f"Unknown role '{raw_role}'"})
+            continue
+
+        try:
+            order = int(float(row.get("order", "1")))
+        except (ValueError, TypeError):
+            order = 1
+
+        payload = InviteParticipantDto(
+            email=email,
+            name=row.get("name") or None,
+            role=role,
+            sequence_order=max(1, order),
+        )
+        try:
+            record, created = await _upsert_participant(doc, payload, user)
+        except Exception as exc:
+            logger.warning(f"file import failed for {email}: {exc}")
+            result.failed.append({"email": email, "reason": str(exc)})
+            continue
+
+        invite_url = _invite_url(record.invite_token)
+        try:
+            await send_collaboration_invite_email(
+                email=record.email,
+                document_name=doc.original_file_name or "document",
+                sender_name=sender_name,
+                role=record.role.value,
+                invite_url=invite_url,
+            )
+        except Exception as exc:
+            logger.warning(f"file import email failed for {record.email}: {exc}")
+
+        if created:
+            result.created.append(
+                ParticipantCreatedOut(**_participant_to_out(record).model_dump(), invite_url=invite_url)
+            )
+        else:
+            result.updated.append(_participant_to_out(record))
+
+    await log_audit(
+        user_id=user.id,
+        action=AuditAction.DOCUMENT_SHARED,
+        entity_type="document",
+        entity_id=str(doc.id),
+        description=(
+            f"File import: {len(result.created)} new, "
             f"{len(result.updated)} updated, {len(result.failed)} failed"
         ),
     )

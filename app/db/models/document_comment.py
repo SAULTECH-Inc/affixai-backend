@@ -36,6 +36,9 @@ class DocumentComment(Model):
     page = fields.IntField(null=True)
     x = fields.FloatField(null=True)
     y = fields.FloatField(null=True)
+    # Optional field-level anchor (e.g. "first_name") so the UI can
+    # highlight the specific field the comment refers to.
+    field_key = fields.CharField(max_length=120, null=True)
 
     resolved = fields.BooleanField(default=False)
     resolved_at = fields.DatetimeField(null=True)
