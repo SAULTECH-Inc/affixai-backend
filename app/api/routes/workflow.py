@@ -517,13 +517,56 @@ async def guest_sign(
     pdf_bytes = await fetch_file_bytes(target)
 
     # If the owner placed targets for THIS participant, use them. Otherwise
-    # fall back to a single bottom-right stamp (the original MVP behavior).
+    # try auto-deriving targets from anchored comments left on the document
+    # (comments where page/x/y are set). This lets owners "mark" signature
+    # spots by dropping a comment pin in the editor — guests then get those
+    # positions auto-affixed on signing. Fall back to bottom-right if neither.
     my_targets = await DocumentSigningTarget.filter(
         document_id=doc.id,
         participant_id=p.id,
         deleted_at=None,
         filled_at=None,
     ).order_by("page", "sort_order", "y")
+
+    if not my_targets:
+        # Auto-derive from anchored comments. Prefer comments that belong to
+        # the owner (participant_id is None = posted by an authenticated user).
+        anchored = await DocumentComment.filter(
+            document_id=doc.id,
+            deleted_at=None,
+        ).exclude(page=None).exclude(x=None).exclude(y=None).order_by("page", "y")
+
+        if anchored:
+            # Infer target kind from field_key when available; default to SIGNATURE.
+            def _infer_kind(field_key: str | None) -> SigningTargetKind:
+                if not field_key:
+                    return SigningTargetKind.SIGNATURE
+                fk = field_key.lower()
+                if "initial" in fk:
+                    return SigningTargetKind.INITIALS
+                if "date" in fk or "time" in fk:
+                    return SigningTargetKind.DATE
+                if "text" in fk or "name" in fk or "title" in fk:
+                    return SigningTargetKind.TEXT
+                return SigningTargetKind.SIGNATURE
+
+            created_targets: list[DocumentSigningTarget] = []
+            for i, c in enumerate(anchored):
+                t = await DocumentSigningTarget.create(
+                    document_id=doc.id,
+                    participant_id=p.id,
+                    kind=_infer_kind(c.field_key),
+                    page=c.page,
+                    x=c.x,
+                    y=c.y,
+                    width=180.0,
+                    height=36.0,
+                    label=c.body[:80] if c.body else None,
+                    sort_order=i,
+                )
+                created_targets.append(t)
+            my_targets = created_targets
+
     if my_targets:
         stamped_bytes = _stamp_at_targets(pdf_bytes, raw, my_targets, participant=p)
         fill_time = datetime.now(timezone.utc)
