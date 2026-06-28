@@ -198,10 +198,13 @@ def _send_sync(
             for fname, data, _mime in attachments
         ]
 
+    api_key_hint = (settings.RESEND_API_KEY[:6] + "…") if settings.RESEND_API_KEY else "NOT SET"
+    logger.info(f"Email | to={to!r} subject={subject!r} from={settings.EMAIL_FROM!r} api_key={api_key_hint}")
     try:
-        resend.Emails.send(params)
+        result = resend.Emails.send(params)
+        logger.info(f"Email sent OK | to={to!r} subject={subject!r} id={result.get('id') if isinstance(result, dict) else getattr(result, 'id', result)}")
     except Exception as exc:
-        logger.warning(f"Resend — email to {to!r} failed: {exc}")
+        logger.error(f"Email FAILED | to={to!r} subject={subject!r} error={exc}")
         raise
 
 
