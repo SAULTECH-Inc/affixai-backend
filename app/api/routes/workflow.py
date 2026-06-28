@@ -7,10 +7,11 @@ Mounted at:
 from __future__ import annotations
 
 import io
+import json
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from loguru import logger
 
 from app.common.deps import get_current_user
@@ -44,7 +45,9 @@ from app.db.models.document_signing_target import (
     SigningTargetKind,
 )
 from app.db.models.user import User
+from app.common.services.manual_stamp import Placement, restamp_pdf
 from app.models.auth_schemas import MessageOut
+from app.models.document_schemas import PlacementDto
 from app.models.workflow_schemas import (
     DeclineDto,
     GuestCommentCreateDto,
@@ -380,6 +383,151 @@ async def delete_signing_target(
     t.deleted_at = datetime.now(timezone.utc)
     await t.save()
     return MessageOut(message="Signing target removed")
+
+
+# =============================================================================
+# Participant-side endpoint (JWT auth — registered user acting as participant)
+# =============================================================================
+
+
+@owner_router.post("/{document_id}/participant-sign", response_model=WorkflowStatusOut)
+async def participant_sign(
+    document_id: UUID,
+    placements: str = Form(default="[]"),   # JSON-encoded PlacementDto list
+    user: User = Depends(get_current_user),
+) -> WorkflowStatusOut:
+    """Allow a registered user who is an active participant to sign the document.
+
+    Accepts an optional JSON-encoded list of placements (same schema as the
+    owner restamp endpoint) and an optional signature image upload. The stamped
+    PDF is saved as ``completed_file_url`` and the workflow is advanced exactly
+    as it would be for a guest signing via a magic link.
+    """
+    # -- Resolve document -------------------------------------------------------
+    doc = await Document.get_or_none(id=document_id, deleted_at=None)
+    if not doc:
+        raise HTTPException(404, "Document not found")
+
+    # -- Verify caller is an active participant ---------------------------------
+    p = await DocumentParticipant.get_or_none(
+        document_id=document_id, email=user.email, deleted_at=None
+    )
+    if not p:
+        raise HTTPException(403, "You are not a participant on this document")
+
+    # -- Verify it is their turn ------------------------------------------------
+    if not await is_participant_actionable(doc, p):
+        raise HTTPException(
+            403, "It's not your turn to sign yet, or the workflow has closed."
+        )
+
+    # -- Block on unresolved comments ------------------------------------------
+    unresolved = await DocumentComment.filter(
+        document_id=doc.id,
+        participant_id=p.id,
+        resolved=False,
+        deleted_at=None,
+    ).count()
+    if unresolved:
+        raise HTTPException(
+            400,
+            f"You have {unresolved} unresolved comment(s). "
+            "Remove or resolve them before signing.",
+        )
+
+    # -- Parse and validate placement list -------------------------------------
+    try:
+        raw_placements = json.loads(placements)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(400, f"Invalid placements JSON: {exc}") from exc
+    try:
+        placement_dtos: list[PlacementDto] = [PlacementDto(**item) for item in raw_placements]
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid placement data: {exc}") from exc
+
+    # -- Fetch PDF bytes -------------------------------------------------------
+    target = doc.completed_file_url or doc.file_url
+    if not target:
+        raise HTTPException(404, "Document file is no longer available")
+    pdf_bytes = await fetch_file_bytes(target)
+
+    # -- Stamp placements if provided ------------------------------------------
+    if placement_dtos:
+        placement_objs = [
+            Placement(
+                kind=pl.kind,           # type: ignore[arg-type]
+                page=pl.page,
+                x=pl.x,
+                y=pl.y,
+                value=pl.value,
+                field_name=pl.field_name,
+                fontsize=pl.fontsize,
+                width=pl.width,
+                height=pl.height,
+                font_family=pl.font_family,
+                bold=pl.bold,
+                italic=pl.italic,
+                color=pl.color,
+            )
+            for pl in placement_dtos
+        ]
+
+        stamped_bytes, _outcome = await restamp_pdf(pdf_bytes, placement_objs, user.id)
+    else:
+        stamped_bytes = pdf_bytes
+
+    # -- Persist stamped PDF ---------------------------------------------------
+    stored = storage_save(
+        stamped_bytes,
+        f"signed-{doc.id}-{uuid4().hex[:10]}.pdf",
+        folder="signed",
+    )
+    doc.completed_file_url = stored["url"]
+    doc.file_size = len(stamped_bytes)
+    await doc.save()
+
+    # -- Advance the workflow --------------------------------------------------
+    try:
+        snap = await record_signature(doc, p)
+    except ValueError as exc:
+        raise HTTPException(403, str(exc)) from exc
+
+    # -- Notify the next signer in sequential workflows ------------------------
+    if doc.routing_mode == RoutingMode.SEQUENTIAL and not snap.is_complete:
+        owner = (
+            await User.get_or_none(id=doc.user_id, deleted_at=None)
+            if doc.user_id else None
+        )
+        sender_name = (
+            (" ".join(filter(None, [owner.first_name, owner.last_name])).strip()
+             or owner.email)
+            if owner else "Someone"
+        )
+        for next_p in await participants_to_notify(doc):
+            try:
+                await send_collaboration_invite_email(
+                    email=next_p.email,
+                    document_name=doc.original_file_name or "document",
+                    sender_name=sender_name,
+                    role=next_p.role.value,
+                    invite_url=_invite_url(next_p.invite_token),
+                    personal_message=next_p.message,
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"sequential rollover email failed for {next_p.email}: {exc}"
+                )
+
+    await log_audit(
+        user_id=user.id,
+        action=AuditAction.DOCUMENT_SIGNED,
+        entity_type="document",
+        entity_id=str(doc.id),
+        description=f"Signed by participant {p.email} (registered user)",
+        metadata={"participant_id": str(p.id)},
+    )
+
+    return _build_status_out(doc, snap)
 
 
 # =============================================================================
