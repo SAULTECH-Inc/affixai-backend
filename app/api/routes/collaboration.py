@@ -121,6 +121,30 @@ async def _get_owned_document(document_id: UUID, user: User) -> Document:
     return doc
 
 
+async def _get_accessible_document(document_id: UUID, user: User) -> Document:
+    """Fetch a document the user can access — either as the owner or as an
+    active participant. Used for comment endpoints so collaborators can read
+    and write comments on documents they've been invited to."""
+    doc = await Document.get_or_none(id=document_id, deleted_at=None)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Owner always has access.
+    if doc.user_id == user.id:
+        return doc
+
+    # Participant access — match by email (covers pre-registration invites).
+    is_participant = await DocumentParticipant.filter(
+        document_id=document_id,
+        email=user.email,
+        deleted_at=None,
+    ).exists()
+    if not is_participant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    return doc
+
+
 def _participant_to_out(p: DocumentParticipant) -> ParticipantOut:
     return ParticipantOut(
         id=p.id,
@@ -584,7 +608,7 @@ def _comment_to_out(c: DocumentComment, *, reply_count: int = 0) -> CommentOut:
 async def list_comments(
     document_id: UUID, user: User = Depends(get_current_user)
 ) -> list[CommentOut]:
-    await _get_owned_document(document_id, user)
+    await _get_accessible_document(document_id, user)
     rows = await DocumentComment.filter(
         document_id=document_id, deleted_at=None
     ).order_by("created_at")
@@ -610,7 +634,7 @@ async def add_comment(
     payload: CommentCreateDto,
     user: User = Depends(get_current_user),
 ) -> CommentOut:
-    doc = await _get_owned_document(document_id, user)
+    doc = await _get_accessible_document(document_id, user)
 
     # Validate the parent belongs to this same document — don't let a reply
     # leak across documents.
@@ -674,7 +698,7 @@ async def update_comment(
     payload: CommentUpdateDto,
     user: User = Depends(get_current_user),
 ) -> CommentOut:
-    await _get_owned_document(document_id, user)
+    await _get_accessible_document(document_id, user)
     c = await DocumentComment.get_or_none(
         id=comment_id, document_id=document_id, deleted_at=None
     )
@@ -704,7 +728,7 @@ async def delete_comment(
     comment_id: UUID,
     user: User = Depends(get_current_user),
 ) -> MessageOut:
-    await _get_owned_document(document_id, user)
+    await _get_accessible_document(document_id, user)
     c = await DocumentComment.get_or_none(
         id=comment_id, document_id=document_id, deleted_at=None
     )
