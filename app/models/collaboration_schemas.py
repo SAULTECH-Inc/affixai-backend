@@ -100,6 +100,20 @@ class CommentOut(BaseModel):
     reply_count: int = 0
 
 
+# ---- Pending signatures (used by extension + dashboard) --------------------
+
+
+class PendingSignatureOut(BaseModel):
+    """A document awaiting the current user's signature."""
+    document_id: UUID
+    document_title: str
+    invite_token: str
+    sender_name: str | None
+    sender_email: str | None
+    role: ParticipantRole
+    created_at: datetime
+
+
 # ---- Activity -------------------------------------------------------------
 
 
