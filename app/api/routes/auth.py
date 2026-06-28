@@ -11,6 +11,7 @@ from loguru import logger
 
 from app.common.services.audit_service import log_audit
 from app.common.services.email_service import (
+    send_login_notification_email,
     send_password_reset_email,
     send_verification_email,
 )
@@ -182,6 +183,14 @@ async def login(payload: LoginDto, request: Request) -> AuthResponse:
         entity_id=str(user.id),
         ip_address=user.last_login_ip,
     )
+    try:
+        await send_login_notification_email(
+            user.email,
+            ip_address=user.last_login_ip,
+            login_time=user.last_login_at.strftime("%Y-%m-%d %H:%M UTC") if user.last_login_at else None,
+        )
+    except Exception as exc:
+        logger.warning(f"login notification email failed for {user.email}: {exc}")
     return AuthResponse(user=_user_out(user), access_token=access, refresh_token=refresh)
 
 
