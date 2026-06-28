@@ -19,13 +19,13 @@ from app.core.config import settings
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-_BRAND_PURPLE = "#7c3aed"
-_BRAND_PURPLE_DARK = "#5b21b6"
-_BG = "#f0f0f5"
-_CARD_BG = "#ffffff"
-_TEXT_MAIN = "#1a1a2e"
-_TEXT_MUTED = "#6b7280"
-_BORDER = "#e5e7eb"
+_BRAND_PURPLE = "#A855F7"   # brand-500
+_BRAND_PINK   = "#EC4899"   # accent-500 — gradient end
+_BG           = "#F4F4F7"
+_CARD_BG      = "#ffffff"
+_TEXT_MAIN    = "#111827"   # fg-primary  rgb(17 24 39)
+_TEXT_MUTED   = "#4B5563"   # fg-muted    rgb(75 85 99)
+_BORDER       = "#E5E7EB"   # border-default rgb(229 231 235)
 
 
 def _base_template(content: str, preheader: str = "") -> str:
@@ -65,7 +65,7 @@ def _base_template(content: str, preheader: str = "") -> str:
 
           <!-- Header -->
           <tr>
-            <td style="background:{_BRAND_PURPLE};padding:28px 32px;text-align:center;">
+            <td style="background:linear-gradient(135deg,{_BRAND_PURPLE} 0%,{_BRAND_PINK} 100%);padding:28px 32px;text-align:center;">
               <span style="font-size:22px;font-weight:700;color:#ffffff;
                            letter-spacing:-0.3px;">{app_name}</span>
             </td>
@@ -115,7 +115,7 @@ def _cta_button(label: str, url: str) -> str:
   <tr>
     <td align="center">
       <a href="{url}"
-         style="display:inline-block;background:{_BRAND_PURPLE};color:#ffffff;
+         style="display:inline-block;background:linear-gradient(135deg,{_BRAND_PURPLE} 0%,{_BRAND_PINK} 100%);color:#ffffff;
                 font-size:15px;font-weight:600;text-decoration:none;
                 padding:14px 36px;border-radius:8px;
                 letter-spacing:0.1px;line-height:1;">
@@ -134,7 +134,7 @@ def _fallback_link(url: str, label: str = "Or copy and paste this link into your
 </p>"""
 
 
-def _info_box(html_content: str, *, color: str = "#f5f3ff", border: str = "#ddd6fe") -> str:
+def _info_box(html_content: str, *, color: str = "#FAF5FF", border: str = "#E9D5FF") -> str:
     return f"""
 <div style="margin-top:20px;padding:14px 18px;background:{color};
             border-left:3px solid {border};border-radius:0 6px 6px 0;
@@ -245,6 +245,53 @@ async def send_verification_email(email: str, token: str) -> None:
         email,
         f"Verify your email — {settings.EMAIL_FROM_NAME}",
         _base_template(content, preheader="Confirm your email to activate your account"),
+    )
+
+
+async def send_login_notification_email(
+    email: str,
+    *,
+    ip_address: str | None = None,
+    login_time: str | None = None,
+) -> None:
+    settings_url = f"{settings.FRONTEND_URL}/settings"
+    meta_rows = ""
+    if login_time:
+        meta_rows += (
+            f'<tr><td style="padding:6px 0;font-size:14px;color:{_TEXT_MUTED};width:110px;">Time</td>'
+            f'<td style="padding:6px 0;font-size:14px;color:{_TEXT_MAIN};">{login_time}</td></tr>'
+        )
+    if ip_address:
+        meta_rows += (
+            f'<tr><td style="padding:6px 0;font-size:14px;color:{_TEXT_MUTED};">IP address</td>'
+            f'<td style="padding:6px 0;font-size:14px;color:{_TEXT_MAIN};">{ip_address}</td></tr>'
+        )
+    meta_table = (
+        f'<table role="presentation" cellspacing="0" cellpadding="0" border="0"'
+        f' style="margin-top:16px;width:100%;">{meta_rows}</table>'
+        if meta_rows else ""
+    )
+    _security_note = _info_box(
+        "If this wasn't you, please "
+        f'<a href="{settings_url}" style="color:{_BRAND_PURPLE};">change your password immediately</a>'
+        " and review your account security.",
+        color="#fff7ed",
+        border="#fed7aa",
+    )
+    content = f"""
+<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:{_TEXT_MAIN};line-height:1.2;">
+  New sign-in to your account
+</h1>
+<p style="margin:0 0 6px;font-size:15px;color:{_TEXT_MUTED};line-height:1.6;">
+  We noticed a new sign-in to your {settings.EMAIL_FROM_NAME} account.
+</p>
+{meta_table}
+{_security_note}
+"""
+    await _send(
+        email,
+        f"New sign-in to your {settings.EMAIL_FROM_NAME} account",
+        _base_template(content, preheader="A new sign-in was detected on your account"),
     )
 
 
