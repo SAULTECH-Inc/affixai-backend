@@ -51,6 +51,7 @@ from app.models.collaboration_schemas import (
     ParticipantCreatedOut,
     ParticipantOut,
     PendingSignatureOut,
+    SignedDocumentOut,
 )
 
 router = APIRouter()
@@ -101,6 +102,51 @@ async def get_pending_mine(current_user: User = Depends(get_current_user)):
                 else None,
                 sender_email=owner.email if owner else None,
                 role=p.role,
+                created_at=p.created_at,
+            )
+        )
+    return result
+
+
+@router.get("/signed-mine", response_model=list[SignedDocumentOut])
+async def get_signed_mine(current_user: User = Depends(get_current_user)):
+    """Return all documents the current user has signed or approved as a participant.
+
+    Matches by email so it works even when the user was invited before registering.
+    """
+    participants = await DocumentParticipant.filter(
+        email=current_user.email,
+        status__in=[ParticipantStatus.SIGNED, ParticipantStatus.APPROVED],
+        deleted_at=None,
+    ).order_by("-completed_at")
+
+    if not participants:
+        return []
+
+    doc_ids = [p.document_id for p in participants]
+    docs: dict = {d.id: d for d in await Document.filter(id__in=doc_ids)}
+
+    owner_ids = list({d.user_id for d in docs.values() if d.user_id})
+    owners: dict = {u.id: u for u in await User.filter(id__in=owner_ids)}
+
+    result: list[SignedDocumentOut] = []
+    for p in participants:
+        doc = docs.get(p.document_id)
+        if not doc:
+            continue
+        owner = owners.get(doc.user_id) if doc.user_id else None
+        result.append(
+            SignedDocumentOut(
+                document_id=doc.id,
+                document_title=doc.original_file_name or "Untitled document",
+                invite_token=p.invite_token,
+                sender_name=(
+                    " ".join(filter(None, [owner.first_name, owner.last_name])).strip()
+                    or owner.email
+                ) if owner else None,
+                sender_email=owner.email if owner else None,
+                role=p.role,
+                signed_at=p.completed_at,
                 created_at=p.created_at,
             )
         )

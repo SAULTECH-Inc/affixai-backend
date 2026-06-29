@@ -114,6 +114,21 @@ class PendingSignatureOut(BaseModel):
     created_at: datetime
 
 
+# ---- Signed documents (used by documents page) ----------------------------
+
+
+class SignedDocumentOut(BaseModel):
+    """A document the current user has already signed as a participant."""
+    document_id: UUID
+    document_title: str
+    invite_token: str
+    sender_name: str | None
+    sender_email: str | None
+    role: ParticipantRole
+    signed_at: datetime | None
+    created_at: datetime
+
+
 # ---- Activity -------------------------------------------------------------
 
 
