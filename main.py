@@ -155,11 +155,12 @@ app.include_router(custom_vault.router, prefix="/api/v1/data-vault/custom", tags
 # Multi-entry vault sections (Education + Employment) — each row is a
 # discrete entry (one degree, one job role) rather than a flat field set.
 app.include_router(vault_entries.router, prefix="/api/v1/data-vault/entries", tags=["Vault Entries"])
-app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
 # Collaboration endpoints mount UNDER /documents so the URLs read naturally:
 # /documents/{id}/participants etc. Same prefix as documents → both routers
 # need to coexist without colliding (paths are disjoint).
+# Registered before documents.router to avoid path parameter matching collisions (e.g. pending-mine vs {document_id}).
 app.include_router(collaboration.router, prefix="/api/v1/documents", tags=["Collaboration"])
+app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
 # Workflow layer (Phase D): owner-side controls under /documents/<id>/...
 # and guest-side actions under /shared/<token>/...
 app.include_router(workflow.owner_router, prefix="/api/v1/documents", tags=["Workflow"])

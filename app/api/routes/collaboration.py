@@ -80,7 +80,7 @@ async def get_pending_mine(current_user: User = Depends(get_current_user)):
     doc_ids = [p.document_id for p in participants]
     docs: dict = {d.id: d for d in await Document.filter(id__in=doc_ids)}
 
-    owner_ids = list({d.owner_id for d in docs.values() if hasattr(d, "owner_id") and d.owner_id})
+    owner_ids = list({d.user_id for d in docs.values() if d.user_id})
     owners: dict = {u.id: u for u in await User.filter(id__in=owner_ids)}
 
     result: list[PendingSignatureOut] = []
@@ -88,11 +88,11 @@ async def get_pending_mine(current_user: User = Depends(get_current_user)):
         doc = docs.get(p.document_id)
         if not doc:
             continue
-        owner = owners.get(getattr(doc, "owner_id", None))
+        owner = owners.get(doc.user_id) if doc.user_id else None
         result.append(
             PendingSignatureOut(
                 document_id=doc.id,
-                document_title=getattr(doc, "title", None) or "Untitled document",
+                document_title=doc.original_file_name or "Untitled document",
                 invite_token=p.invite_token,
                 sender_name=(
                     " ".join(filter(None, [owner.first_name, owner.last_name])).strip()

@@ -239,6 +239,19 @@ async def clear_segment(
     return MessageOut(message=f"Cleared {cleared} fields")
 
 
+@router.get("/flat", response_model=dict[str, str | None])
+async def get_flat_vault(user: User = Depends(get_current_user)) -> dict[str, str | None]:
+    """Return a flat key-value dictionary of all active vault fields for the user."""
+    rows = await DataVault.filter(user_id=user.id, is_active=True, deleted_at=None)
+    out: dict[str, str | None] = {}
+    for row in rows:
+        try:
+            out[row.field_name] = decrypt(row.encrypted_value)
+        except Exception:
+            continue
+    return out
+
+
 @router.get("/records", response_model=list[VaultRecordOut])
 async def list_records(user: User = Depends(get_current_user)) -> list[VaultRecordOut]:
     """Diagnostic flat-row view across all segments."""
