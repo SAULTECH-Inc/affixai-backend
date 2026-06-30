@@ -241,14 +241,43 @@ async def clear_segment(
 
 @router.get("/flat", response_model=dict[str, str | None])
 async def get_flat_vault(user: User = Depends(get_current_user)) -> dict[str, str | None]:
-    """Return a flat key-value dictionary of all active vault fields for the user."""
+    """Return a flat key-value dictionary of all active vault fields for the user.
+
+    In addition to canonical field_name keys (e.g. ``primary_email``), each
+    field's aliases from the schema are also emitted as normalised keys so the
+    Chrome extension can match common HTML label text like ``"email"`` or
+    ``"phone_number"`` directly without knowing the internal key name.
+    Alias keys never overwrite a canonical key that is already present.
+    """
+    import re as _re
+
+    def _alias_key(text: str) -> str:
+        """Lowercase, strip punctuation, collapse whitespace → underscores."""
+        cleaned = _re.sub(r"[^a-z0-9\s]", "", text.lower())
+        return "_".join(cleaned.split())
+
+    # Build a lookup: field_name → list[alias strings] from the schema.
+    from app.common.vault_schema import FIELD_REGISTRY
+
+    alias_map: dict[str, list[str]] = {}
+    for fields in FIELD_REGISTRY.values():
+        for field in fields:
+            alias_map[field["name"]] = [field["label"]] + list(field.get("aliases") or [])
+
     rows = await DataVault.filter(user_id=user.id, is_active=True, deleted_at=None)
     out: dict[str, str | None] = {}
     for row in rows:
         try:
-            out[row.field_name] = decrypt(row.encrypted_value)
+            value = decrypt(row.encrypted_value)
         except Exception:
             continue
+        # Canonical key always wins.
+        out[row.field_name] = value
+        # Emit alias keys so the extension can do direct label matching.
+        for alias in alias_map.get(row.field_name, []):
+            key = _alias_key(alias)
+            if key and key not in out:
+                out[key] = value
     return out
 
 

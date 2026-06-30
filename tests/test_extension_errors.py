@@ -78,11 +78,15 @@ async def test_get_flat_vault(client, authed_user):
     )
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data == {
-        "first_name": "John",
-        "last_name": "Doe",
-        "custom_field_name": "Custom Value",
-    }
+    # Canonical keys must be present with correct values.
+    assert data["first_name"] == "John"
+    assert data["last_name"] == "Doe"
+    assert data["custom_field_name"] == "Custom Value"
+    # Alias keys should also be present (the endpoint enriches the payload).
+    assert data.get("given_name") == "John"  # alias for first_name
+    assert data.get("surname") == "Doe"       # alias for last_name
+    # Inactive / other-user records must not appear.
+    assert "ignored_field" not in data
 
 
 @pytest.mark.asyncio
