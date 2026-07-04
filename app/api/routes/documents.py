@@ -150,10 +150,7 @@ async def upload_document(
     user: User = Depends(get_current_user),
 ) -> DocumentOut:
     body = await file.read()
-    s3 = s3_service()
-    uploaded = s3.upload_file(
-        body, file.filename or "upload.bin", file.content_type or "application/octet-stream"
-    )
+    uploaded = local_save_bytes(body, file.filename or "upload.bin")
 
     doc = await Document.create(
         user_id=user.id,
