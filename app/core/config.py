@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "noreply@example.com"
     EMAIL_FROM_NAME: str = "AI Document Signer"
     FRONTEND_URL: str = "http://localhost:3001"
+    BACKEND_URL: str = "http://localhost:8000"
 
     # Where leads from the public /contact and /careers forms get forwarded.
     # Leave empty to fall back to the hardcoded defaults in leads.py

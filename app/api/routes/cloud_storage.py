@@ -91,14 +91,7 @@ def _redirect_uri(provider: CloudProvider) -> str:
     The backend then redirects the user back to the frontend's
     `/settings#integrations` page.
     """
-    # FRONTEND_URL is the SPA host — we host on the same domain ideally; for
-    # dev with separate frontend (vite :3001) and backend (:8000) the
-    # callback goes to the backend.
-    api_base = settings.FRONTEND_URL  # if frontend proxies to backend
-    # Compose: <backend-host>/api/v1/integrations/cloud/<provider>/callback
-    # We store the API base separately; for now, derive from FRONTEND_URL.
-    # This is intentionally hardcoded to the deployment's known callback.
-    return f"http://localhost:8000/api/v1/integrations/cloud/{provider.value}/callback"
+    return f"{settings.BACKEND_URL}/api/v1/integrations/cloud/{provider.value}/callback"
 
 
 @router.post("/cloud/{provider_id}/connect")

@@ -40,7 +40,7 @@ class GoogleDriveProvider(CloudStorageProvider):
 
     def is_configured(self) -> bool:
         return bool(
-            settings.GOOGLE_OAUTH_CLIENT_ID and settings.GOOGLE_OAUTH_CLIENT_SECRET
+            settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET
         )
 
     # ---- OAuth -----------------------------------------------------------
@@ -54,7 +54,7 @@ class GoogleDriveProvider(CloudStorageProvider):
         # in the callback handler.
         state = f"{user_id}:{secrets.token_urlsafe(16)}"
         params = {
-            "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
+            "client_id": settings.GOOGLE_CLIENT_ID,
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": " ".join(_GOOGLE_SCOPES),
@@ -76,8 +76,8 @@ class GoogleDriveProvider(CloudStorageProvider):
 
         data = {
             "code": code,
-            "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
-            "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
             "redirect_uri": redirect_uri,
             "grant_type": "authorization_code",
         }
@@ -147,8 +147,8 @@ class GoogleDriveProvider(CloudStorageProvider):
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.post(_TOKEN_URL, data={
-                    "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
-                    "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
                     "refresh_token": refresh_token,
                     "grant_type": "refresh_token",
                 })
