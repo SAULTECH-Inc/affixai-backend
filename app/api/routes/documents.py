@@ -156,7 +156,9 @@ async def upload_document(
         user_id=user.id,
         file_name=uploaded["key"],
         original_file_name=file.filename or "upload.bin",
-        file_url=uploaded["key"],
+        # Use the full URL (https:// for Cloudinary, local:// for local FS).
+        # Storing only the key (public_id) breaks serve_file / fetch_file_bytes.
+        file_url=uploaded.get("url") or uploaded["key"],
         file_mime_type=file.content_type or "application/octet-stream",
         file_size=len(body),
         document_type=document_type,
@@ -584,10 +586,16 @@ async def stream_document_file(
         entity_id=str(doc.id),
     )
 
-    return serve_file(
-        target,
+    # Proxy bytes through the backend instead of redirecting.
+    # Cloudinary private_download_url redirects route through api.cloudinary.com
+    # which does not send CORS headers the browser needs, so a direct redirect
+    # causes the frontend fetch to fail. Fetching server-side avoids that.
+    file_bytes = await fetch_file_bytes(target)
+    safe_name = (doc.original_file_name or "document.pdf").replace('"', "")
+    return Response(
+        content=file_bytes,
         media_type=doc.file_mime_type or "application/pdf",
-        filename=doc.original_file_name or "document.pdf",
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
     )
 
 
