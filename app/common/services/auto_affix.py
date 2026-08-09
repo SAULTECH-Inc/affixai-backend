@@ -1955,6 +1955,43 @@ def _stamp_signature_or_typed(
 # ---- Top-level entry point ---------------------------------------------------
 
 
+async def auto_affix_document_bytes(
+    file_bytes: bytes,
+    mime_type: str,
+    user_id: UUID,
+) -> tuple[bytes, StampReport]:
+    """Unified auto-sign entry point that accepts PDF, DOCX, or DOC files.
+
+    DOCX/DOC files are converted to PDF via LibreOffice (via the existing
+    docx_to_pdf() helper in document_processing) so the full stamp pipeline
+    can run on the PDF representation. The return value is always
+    (signed_pdf_bytes, StampReport) — signed documents are always delivered
+    as PDF regardless of the source format.
+
+    Raises RuntimeError if LibreOffice is not installed and a DOCX/DOC file
+    is provided. Raises ValueError if the format is not recognised.
+    """
+    mime_lower = (mime_type or "").lower()
+    is_docx = (
+        "wordprocessingml" in mime_lower
+        or "msword" in mime_lower
+    )
+    is_pdf = "pdf" in mime_lower or file_bytes[:4] == b"%PDF"
+
+    if is_docx:
+        from app.common.services.document_processing import docx_to_pdf
+        logger.info("auto-sign: converting DOCX → PDF before stamping")
+        pdf_bytes = docx_to_pdf(file_bytes)
+    elif is_pdf:
+        pdf_bytes = file_bytes
+    else:
+        raise ValueError(
+            "auto-sign supports PDF (.pdf) and Word (.docx, .doc) files only"
+        )
+
+    return await auto_affix_pdf_bytes(pdf_bytes, user_id)
+
+
 async def auto_affix_pdf_bytes(
     pdf_bytes: bytes,
     user_id: UUID,

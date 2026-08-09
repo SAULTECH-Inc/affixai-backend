@@ -21,7 +21,7 @@ from loguru import logger
 from app.common.deps import get_current_user, require_active_subscription
 from app.common.services import fastapi_internal
 from app.common.services.audit_service import log_audit
-from app.common.services.auto_affix import auto_affix_pdf_bytes
+from app.common.services.auto_affix import auto_affix_pdf_bytes, auto_affix_document_bytes
 from app.common.services.manual_stamp import Placement, restamp_pdf
 from app.common.services.email_service import (
     send_document_shared_email,
@@ -406,12 +406,15 @@ async def auto_sign(
     file: UploadFile = File(...),
     user: User = Depends(require_active_subscription),
 ) -> AutoSignOut:
-    """Upload a document to sign — the platform stamps vault values + signature.
+    """Upload a PDF or Word (.docx/.doc) document to sign.
 
-    The current iteration supports digital PDFs (PDFs with extractable text).
+    The platform detects labelled fields ("First Name:", "DOB:", "Sign here:"),
+    matches them to the user's vault, and stamps the values onto the document.
+    DOCX/DOC files are converted to PDF first via LibreOffice so the stamp
+    pipeline can run; the result is always returned as a signed PDF.
+
     For each line containing `Label: ...`, the label is matched to a vault
-    field via the same alias registry used in Phase 3. If the user has set a
-    value for that field, it's stamped just past the colon. Lines containing
+    field via the same alias registry used in Phase 3. Lines containing
     `signature` / `sign here` get the user's default signature image, or a
     typed `full_legal_name` if no image signature exists.
 
@@ -424,29 +427,64 @@ async def auto_sign(
         )
 
     mime = (file.content_type or "").lower()
-    if "pdf" not in mime and content[:4] != b"%PDF":
+    filename_lower = (file.filename or "").lower()
+    is_pdf = "pdf" in mime or content[:4] == b"%PDF"
+    is_docx = (
+        "wordprocessingml" in mime
+        or "msword" in mime
+        or filename_lower.endswith((".docx", ".doc"))
+    )
+    if not is_pdf and not is_docx:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="auto-sign currently supports PDF uploads only",
+            detail="auto-sign supports PDF (.pdf) and Word (.docx, .doc) files only",
         )
 
+    # Resolve a clean MIME type to store regardless of what the browser sent.
+    stored_mime = "application/pdf" if is_pdf else (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    # Signed result is always a PDF — use a .pdf suffix for the stored filename.
+    original_name = file.filename or ("to-sign.pdf" if is_pdf else "to-sign.docx")
+    signed_name = (
+        original_name.rsplit(".", 1)[0] + ".pdf"
+        if not original_name.lower().endswith(".pdf")
+        else original_name
+    )
+
     # Persist the original so we always have it.
-    original = local_save_bytes(content, file.filename or "to-sign.pdf", folder="to-sign")
+    original = local_save_bytes(content, original_name, folder="to-sign")
     doc = await Document.create(
         user_id=user.id,
         file_name=original["key"],
-        original_file_name=file.filename or "to-sign.pdf",
+        original_file_name=original_name,
         file_url=original["url"],
-        file_mime_type="application/pdf",
+        file_mime_type=stored_mime,
         file_size=len(content),
         document_type=DocumentType.FORM,
         status=DocumentStatus.PROCESSING,
         processing_mode=ProcessingMode.AUTO,
-        metadata={"purpose": "auto_sign"},
+        metadata={"purpose": "auto_sign", "source_format": "docx" if is_docx else "pdf"},
     )
 
     try:
-        stamped_bytes, report = await auto_affix_pdf_bytes(content, user.id)
+        # Pass `stored_mime`, not the browser's `content_type` — browsers send
+        # "application/octet-stream" for .docx often enough that trusting it
+        # would fail the format check we just resolved from filename + magic
+        # bytes.
+        stamped_bytes, report = await auto_affix_document_bytes(
+            content, stored_mime, user.id
+        )
+    except RuntimeError as exc:
+        # LibreOffice not installed — surface as 501
+        logger.warning(f"auto-sign: LibreOffice missing: {exc}")
+        doc.status = DocumentStatus.FAILED
+        doc.metadata = {**(doc.metadata or {}), "auto_sign_error": str(exc)}
+        await doc.save()
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(exc),
+        ) from exc
     except Exception as exc:
         logger.exception("auto-sign failed")
         doc.status = DocumentStatus.FAILED
@@ -459,7 +497,7 @@ async def auto_sign(
 
     stored = local_save_bytes(
         stamped_bytes,
-        f"signed-{file.filename or 'document.pdf'}",
+        f"signed-{signed_name}",
         folder="signed",
     )
 
@@ -531,7 +569,7 @@ async def auto_sign(
         document_id=doc.id,
         download_url=_resolve_download_url(
             stored["url"],
-            filename=f"signed-{file.filename or 'document.pdf'}",
+            filename=f"signed-{signed_name}",
         ),
         report=AutoSignReport(
             fields_filled=[
@@ -600,6 +638,107 @@ async def stream_document_file(
 
 
 # ---- Document processing layer (Phase B): format conversion + extraction ---
+
+
+@router.post("/convert")
+async def convert_uploaded_document(
+    file: UploadFile = File(...),
+    target_format: str = Form(...),
+    user: User = Depends(get_current_user),
+):
+    """One-shot, stateless format conversion.
+
+    Unlike `GET /{document_id}/download/{target_format}`, this endpoint takes
+    the file directly in the request and streams the converted bytes straight
+    back — no Document row is created and nothing is persisted. The source
+    format is detected from the upload's filename + MIME type.
+
+    Available to any logged-in user (no `require_active_subscription`): format
+    conversion is a utility, not a metered signing operation.
+    """
+    from app.common.services.document_processing import (
+        MIME_BY_FORMAT,
+        DocFormat,
+        convert_document,
+        detect_format,
+    )
+    from app.core.config import settings as _settings
+
+    target = (target_format or "").lower().strip()
+    if target not in {f.value for f in DocFormat}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported target format: {target_format!r}. Use pdf, docx, txt, or md.",
+        )
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file"
+        )
+
+    max_bytes = _settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds the {_settings.MAX_FILE_SIZE_MB}MB limit",
+        )
+
+    src = detect_format(file.filename, file.content_type)
+    if src is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Could not detect the source format. Supported inputs: "
+                ".pdf, .docx, .doc, .txt, .md"
+            ),
+        )
+    if src.value == target:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Source and target are both {target} — nothing to convert.",
+        )
+
+    try:
+        out_bytes = convert_document(content, src.value, target)  # type: ignore[arg-type]
+    except RuntimeError as exc:
+        # External-tool dependency missing (LibreOffice for docx → pdf).
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        logger.exception("standalone conversion failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Conversion failed: {exc}",
+        ) from exc
+
+    base = (file.filename or "document").rsplit(".", 1)[0] or "document"
+    # Strip characters that would break the Content-Disposition header.
+    safe_base = "".join(c for c in base if c not in '"\\\r\n')
+    download_name = f"{safe_base}.{target}"
+
+    await log_audit(
+        user_id=user.id,
+        action=AuditAction.DOCUMENT_DOWNLOADED,
+        entity_type="conversion",
+        description=f"Converted {src.value} → {target}",
+        metadata={"from": src.value, "to": target, "size": len(out_bytes)},
+    )
+
+    return Response(
+        content=out_bytes,
+        media_type=MIME_BY_FORMAT.get(target, "application/octet-stream"),
+        headers={
+            "Content-Disposition": f'attachment; filename="{download_name}"',
+            # Lets the browser read the filename off a fetch/XHR response.
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
 
 
 @router.get("/{document_id}/download/{target_format}")
