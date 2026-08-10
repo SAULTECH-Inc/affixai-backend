@@ -36,6 +36,17 @@ dependencies = [
     "pymupdf",
     "fuzzywuzzy==0.18.0",
     "python-Levenshtein==0.25.0",
+    # Document processing layer (Phase B). These are imported lazily inside
+    # document_processing.py, so a missing one only surfaces at request time
+    # as "No module named ..." — which is exactly what happened in deploys
+    # built from this file (the Dockerfile runs `poetry install --without dev`,
+    # so [project].dependencies is the whole runtime set).
+    #   pdf2docx    — PDF → DOCX
+    #   python-docx — DOCX read/write, and TXT/Markdown → DOCX
+    #   reportlab   — TXT/Markdown → PDF
+    "pdf2docx>=0.5.8",
+    "python-docx>=1.1.0",
+    "reportlab>=4.0.0",
     # Scheduler
     "apscheduler",
     # CSV / Excel parsing for bulk invite file uploads
