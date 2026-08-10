@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -179,3 +180,42 @@ class EmailDocumentDto(BaseModel):
 class EmailDocumentOut(BaseModel):
     sent_to: str
     document_name: str
+
+
+# ---- Authoring (blank documents + page operations) -------------------------
+
+
+class CreateBlankDto(BaseModel):
+    """Start a document from a blank page rather than an upload."""
+    title: str | None = Field(default=None, max_length=200)
+    page_size: str = "a4"
+    pages: int = Field(default=1, ge=1, le=200)
+    landscape: bool = False
+    document_type: DocumentType = DocumentType.OTHER
+
+
+class PageOpDto(BaseModel):
+    """A single page-level edit.
+
+    `op` decides which of the optional fields apply:
+      add       — at (None = append), count, page_size, landscape
+      duplicate — index
+      delete    — index
+      reorder   — order (a full permutation of the current page indices)
+      rotate    — index, degrees
+    """
+    op: Literal["add", "duplicate", "delete", "reorder", "rotate"]
+    index: int | None = Field(default=None, ge=0)
+    at: int | None = Field(default=None, ge=0)
+    count: int = Field(default=1, ge=1, le=200)
+    page_size: str | None = None
+    landscape: bool = False
+    order: list[int] | None = None
+    degrees: int = 90
+
+
+class PageOpOut(BaseModel):
+    document_id: UUID
+    page_count: int
+    placements_kept: int
+    placements_dropped: int

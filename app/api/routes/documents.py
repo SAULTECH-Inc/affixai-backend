@@ -42,11 +42,14 @@ from app.models.auth_schemas import MessageOut
 from app.models.document_schemas import (
     AutoSignOut,
     AutoSignReport,
+    CreateBlankDto,
     DocumentOut,
     DocumentStatsOut,
     DownloadUrlOut,
     EmailDocumentDto,
     EmailDocumentOut,
+    PageOpDto,
+    PageOpOut,
     PresignedUploadOut,
     RestampDto,
     RestampOut,
@@ -634,6 +637,154 @@ async def stream_document_file(
         content=file_bytes,
         media_type=doc.file_mime_type or "application/pdf",
         headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+    )
+
+
+# ---- Authoring: blank documents + page operations --------------------------
+
+
+@router.post("/blank", response_model=DocumentOut)
+async def create_blank_document(
+    dto: CreateBlankDto,
+    user: User = Depends(get_current_user),
+) -> DocumentOut:
+    """Start a document from a blank page instead of an upload.
+
+    The result is an ordinary Document row, so it flows straight into the
+    existing placement editor, signing and audit paths — the only difference is
+    `metadata.origin`, which records that the user authored it rather than
+    uploaded it.
+    """
+    from app.common.services.pdf_authoring import create_blank_pdf
+
+    try:
+        pdf_bytes = create_blank_pdf(
+            page_size=dto.page_size, pages=dto.pages, landscape=dto.landscape
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    title = (dto.title or "Untitled document").strip() or "Untitled document"
+    file_name = f"{title}.pdf" if not title.lower().endswith(".pdf") else title
+    stored = local_save_bytes(pdf_bytes, file_name, folder="authored")
+
+    doc = await Document.create(
+        user_id=user.id,
+        file_name=stored["key"],
+        original_file_name=file_name,
+        file_url=stored["url"],
+        file_mime_type="application/pdf",
+        file_size=len(pdf_bytes),
+        document_type=dto.document_type,
+        # DRAFT, not UPLOADED: there is nothing to extract from a blank page,
+        # and the Documents page's Drafts filter is where the user will look
+        # for something they started but haven't finished.
+        status=DocumentStatus.DRAFT,
+        processing_mode=ProcessingMode.MANUAL,
+        field_placements=[],
+        metadata={
+            "origin": "created",
+            "page_size": dto.page_size,
+            "landscape": dto.landscape,
+            "page_count": dto.pages,
+        },
+    )
+    await log_audit(
+        user_id=user.id,
+        action=AuditAction.DOCUMENT_UPLOADED,
+        entity_type="document",
+        entity_id=str(doc.id),
+        description=f"Created blank document ({dto.pages} × {dto.page_size})",
+    )
+    return _to_out(doc)
+
+
+@router.post("/{document_id}/pages", response_model=PageOpOut)
+async def edit_document_pages(
+    document_id: UUID,
+    dto: PageOpDto,
+    user: User = Depends(get_current_user),
+) -> PageOpOut:
+    """Add, duplicate, delete, reorder or rotate pages.
+
+    Placements are migrated through the operation's index map, so anything the
+    user has already positioned follows its page. Placements on a deleted page
+    are dropped — nothing else can be done with them — and the count is returned
+    so the editor can tell the user what happened.
+    """
+    from app.common.services import pdf_authoring as pa
+
+    doc = await Document.get_or_none(id=document_id, user_id=user.id, deleted_at=None)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Operate on the working file. A signed/completed render is a finished
+    # artifact; re-paginating under it would invalidate the signature layout.
+    if doc.completed_file_url:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This document has already been rendered. Duplicate it to keep editing pages.",
+        )
+    if not doc.file_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No file available for this document"
+        )
+
+    source = await fetch_file_bytes(doc.file_url)
+    before = list(doc.field_placements or [])
+
+    try:
+        if dto.op == "add":
+            out_bytes, index_map = pa.add_pages(
+                source, at=dto.at, count=dto.count,
+                page_size=dto.page_size, landscape=dto.landscape,
+            )
+        elif dto.op == "duplicate":
+            if dto.index is None:
+                raise ValueError("duplicate needs an `index`.")
+            out_bytes, index_map = pa.duplicate_page(source, dto.index)
+        elif dto.op == "delete":
+            if dto.index is None:
+                raise ValueError("delete needs an `index`.")
+            out_bytes, index_map = pa.delete_page(source, dto.index)
+        elif dto.op == "reorder":
+            if not dto.order:
+                raise ValueError("reorder needs an `order` list.")
+            out_bytes, index_map = pa.reorder_pages(source, dto.order)
+        else:  # rotate
+            if dto.index is None:
+                raise ValueError("rotate needs an `index`.")
+            out_bytes, index_map = pa.rotate_page(source, dto.index, dto.degrees)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        logger.exception("page operation failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Page operation failed: {exc}",
+        ) from exc
+
+    after = pa.remap_placements(before, index_map)
+
+    stored = local_save_bytes(out_bytes, doc.original_file_name or "document.pdf", folder="authored")
+    doc.file_url = stored["url"]
+    doc.file_name = stored["key"]
+    doc.file_size = len(out_bytes)
+    doc.field_placements = after
+    doc.status = DocumentStatus.DRAFT
+    pages_now = pa.page_count(out_bytes)
+    doc.metadata = {**(doc.metadata or {}), "page_count": pages_now}
+    await doc.save()
+
+    return PageOpOut(
+        document_id=doc.id,
+        page_count=pages_now,
+        placements_kept=len(after),
+        placements_dropped=max(0, len(before) - len(after)),
     )
 
 
