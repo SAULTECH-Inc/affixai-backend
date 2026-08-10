@@ -1,12 +1,13 @@
 """Google Drive provider — OAuth + upload.
 
-Uses google-auth's installed-app + refresh-token flow. The Drive API call
-itself uses googleapiclient v3.
+Talks to Google over plain HTTPS with httpx: the OAuth code/refresh
+exchanges plus a `multipart/related` upload to the Drive v3 API. This
+deliberately avoids google-api-python-client, which ships ~100MB of static
+API discovery documents (we need exactly one of them) and on its own pushed
+the Vercel function bundle past the 500MB limit.
 """
 from __future__ import annotations
 
-import asyncio
-import io
 import secrets
 import time
 from typing import Any
@@ -33,6 +34,7 @@ from .base import (
 _GOOGLE_SCOPES = ["https://www.googleapis.com/auth/drive.file", "openid", "email", "profile"]
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
 _AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
 
 
 class GoogleDriveProvider(CloudStorageProvider):
@@ -189,35 +191,53 @@ class GoogleDriveProvider(CloudStorageProvider):
         except Exception as exc:
             raise CloudProviderError(f"Could not decrypt access token: {exc}") from exc
 
-        # googleapiclient is sync — wrap in a thread so we don't block the
-        # event loop while uploading.
-        def _do() -> dict[str, Any]:
-            from google.oauth2.credentials import Credentials
-            from googleapiclient.discovery import build
-            from googleapiclient.http import MediaIoBaseUpload
+        import json
 
-            creds = Credentials(token=access)
-            service = build("drive", "v3", credentials=creds, cache_discovery=False)
-            metadata: dict[str, Any] = {"name": file_name}
-            if folder_id:
-                metadata["parents"] = [folder_id]
-            media = MediaIoBaseUpload(
-                io.BytesIO(file_bytes),
-                mimetype=mime_type,
-                resumable=False,
-            )
-            created = (
-                service.files()
-                .create(body=metadata, media_body=media, fields="id, name, webViewLink")
-                .execute()
-            )
-            return created
+        import httpx
+
+        metadata: dict[str, Any] = {"name": file_name}
+        if folder_id:
+            metadata["parents"] = [folder_id]
+
+        # Drive's multipart upload wants `multipart/related` with a JSON
+        # metadata part followed by the raw file part. httpx only builds
+        # `multipart/form-data`, so we assemble the body by hand.
+        boundary = f"affixai{secrets.token_hex(16)}"
+        body = b"".join([
+            f"--{boundary}\r\n".encode(),
+            b"Content-Type: application/json; charset=UTF-8\r\n\r\n",
+            json.dumps(metadata).encode(),
+            f"\r\n--{boundary}\r\n".encode(),
+            f"Content-Type: {mime_type}\r\n\r\n".encode(),
+            file_bytes,
+            f"\r\n--{boundary}--\r\n".encode(),
+        ])
 
         try:
-            created = await asyncio.to_thread(_do)
-        except Exception as exc:
-            # googleapiclient raises googleapiclient.errors.HttpError on 4xx/5xx
-            raise CloudProviderError(f"Google Drive upload failed: {exc}") from exc
+            # Generous timeout: this is a full file upload, not an API ping.
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(
+                    _UPLOAD_URL,
+                    params={"uploadType": "multipart", "fields": "id,name,webViewLink"},
+                    headers={
+                        "Authorization": f"Bearer {access}",
+                        "Content-Type": f"multipart/related; boundary={boundary}",
+                    },
+                    content=body,
+                )
+        except httpx.HTTPError as exc:
+            raise CloudProviderError(f"Google Drive upload network error: {exc}") from exc
+
+        if r.status_code >= 400:
+            raise CloudProviderError(
+                f"Google Drive upload failed: {r.status_code} {r.text[:300]}"
+            )
+        try:
+            created = r.json()
+        except ValueError as exc:
+            raise CloudProviderError(
+                f"Google Drive returned a non-JSON response: {r.text[:200]}"
+            ) from exc
 
         return UploadResult(
             file_id=created.get("id", ""),

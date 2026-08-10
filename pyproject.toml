@@ -53,10 +53,11 @@ dependencies = [
     "openpyxl>=3.1.0",
     # Cloudinary file storage
     "cloudinary",
-    # Google Drive cloud export
-    "google-auth",
-    "google-auth-oauthlib",
-    "google-api-python-client",
+    # Google Drive cloud export talks to Google directly over httpx — see
+    # cloud_storage/google_drive.py. The google-* client libraries are
+    # deliberately NOT dependencies: google-api-python-client alone bundles
+    # ~100MB of static API discovery documents and pushed the Vercel function
+    # over its 500MB limit.
     # Logging
     "loguru==0.7.2",
 ]
