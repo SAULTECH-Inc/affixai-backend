@@ -323,6 +323,82 @@ _PDF2DOCX_SETTINGS = {
 }
 
 
+def pdf_text_layer_stats(
+    pdf_bytes: bytes, *, min_chars_per_page: int = 15
+) -> tuple[int, int]:
+    """Return `(total_pages, pages_with_a_usable_text_layer)`.
+
+    `min_chars_per_page` guards against counting a lone page number or a
+    watermark as a real text layer.
+    """
+    import fitz
+
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as exc:
+        logger.warning(f"could not open PDF for text-layer check: {exc}")
+        return 0, 0
+    try:
+        total = doc.page_count
+        with_text = sum(
+            1 for page in doc
+            if len((page.get_text("text") or "").strip()) >= min_chars_per_page
+        )
+        return total, with_text
+    finally:
+        doc.close()
+
+
+def ocr_pdf(pdf_bytes: bytes, *, language: str = "eng", force: bool = False) -> bytes:
+    """Add an invisible OCR text layer to a PDF, preserving its appearance.
+
+    Uses OCRmyPDF rather than calling Tesseract directly: Tesseract alone
+    returns bare text and discards position, whereas OCRmyPDF keeps the
+    original page and overlays the recognised words invisibly on top. That
+    distinction is the whole point here — pdf2docx reconstructs layout from
+    the *geometry* of text spans, so it needs positioned text, not a
+    transcript.
+
+    `deskew`/`rotate_pages` matter more than they look: pdf2docx infers
+    columns and tables from span coordinates, so a page scanned 2° crooked
+    produces broken structure. Straightening first is what makes that
+    inference work at all.
+
+    Raises RuntimeError when OCRmyPDF (or its Tesseract/Ghostscript engines)
+    isn't available, which callers surface as a 501 — the same treatment as a
+    missing LibreOffice.
+    """
+    try:
+        import ocrmypdf
+    except ImportError as exc:
+        raise RuntimeError(
+            "OCR is unavailable on this server: OCRmyPDF is not installed. "
+            "Install the extra with `pip install '.[ocr]'` plus the tesseract "
+            "and ghostscript binaries."
+        ) from exc
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / "in.pdf"
+        dst = Path(tmp) / "out.pdf"
+        src.write_bytes(pdf_bytes)
+        kwargs: dict = {
+            "language": language,
+            "deskew": True,
+            "rotate_pages": True,
+            "progress_bar": False,
+        }
+        # `skip_text` and `force_ocr` are mutually exclusive. skip_text leaves
+        # already-digital pages untouched, which is the safe choice for a
+        # mixed PDF; force_ocr rasterises everything for a uniform layer.
+        kwargs["force_ocr" if force else "skip_text"] = True
+        try:
+            ocrmypdf.ocr(src, dst, **kwargs)
+        except Exception as exc:
+            # Missing engine binaries surface here rather than at import.
+            raise RuntimeError(f"OCR failed: {exc}") from exc
+        return dst.read_bytes()
+
+
 def pdf_to_docx(pdf_bytes: bytes) -> bytes:
     """Convert PDF → DOCX via the pdf2docx library.
 
@@ -642,7 +718,25 @@ def convert_document(
     result: bytes | None = None
     if src == DocFormat.PDF:
         if tgt == DocFormat.DOCX:
-            result = pdf_to_docx(source_bytes)
+            # pdf2docx builds the DOCX from the geometry of the PDF's text
+            # spans, so a scanned page (no text layer) yields an empty or
+            # near-empty document. Add an invisible OCR layer first.
+            #
+            # The TXT/MD paths below don't need this: extract_text_from_pdf
+            # already falls back to per-page Tesseract, and they discard
+            # layout anyway.
+            pages, with_text = pdf_text_layer_stats(source_bytes)
+            if pages and with_text < pages:
+                logger.info(
+                    f"pdf→docx: {pages - with_text}/{pages} pages have no text "
+                    "layer — running OCR pre-pass"
+                )
+                # skip_text mode, so pages that already have text are left
+                # untouched; only the scanned ones get a new layer.
+                source_for_docx = ocr_pdf(source_bytes)
+            else:
+                source_for_docx = source_bytes
+            result = pdf_to_docx(source_for_docx)
         elif tgt == DocFormat.TXT:
             result = extract_text_from_pdf(source_bytes).encode("utf-8")
         elif tgt == DocFormat.MD:
