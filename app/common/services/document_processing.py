@@ -289,12 +289,52 @@ def docx_to_markdown(docx_bytes: bytes) -> str:
 # ---- DOCX generation -------------------------------------------------------
 
 
+# pdf2docx settings — see `Converter.default_settings` for the full list.
+#
+# `parse_stream_table` is the important one. A "stream table" is a borderless
+# table pdf2docx *infers* from text that happens to line up in columns. On a
+# two-column layout (CVs, brochures, anything from a design tool) the two
+# columns look exactly like that, so it reconstructs the page as one enormous
+# grid — we measured a 64-row × 22-column table on a 3-page CV — and then
+# squeezes each column into a narrow cell. Text rewraps, overflows its
+# fixed-height row, and piles on top of itself.
+#
+# Measured on a 3-page two-column CV, default vs parse_stream_table=False:
+#
+#                       words kept   headings intact   time
+#   default                  81.6%   no ("EXPERIENC")  55.6s
+#   parse_stream_table=off   98.6%   yes                1.5s
+#
+# Losing 18% of the words is the worst outcome available here, and 55s risks
+# a serverless timeout on its own. Turning the inference off keeps the text
+# and runs ~35x faster; the cost is that genuinely borderless tables come
+# through as plain paragraphs, which is a far better failure than silently
+# dropping content.
+#
+# `list_not_table` (on by default) is kept so bullet lists don't become tables
+# either.
+_PDF2DOCX_SETTINGS = {
+    "parse_stream_table": False,
+    # Ignore small decorative vector graphics (icon strokes, hairline
+    # dividers) instead of promoting them to table borders.
+    "min_svg_w": 20.0,
+    "min_svg_h": 20.0,
+    "shape_min_dimension": 8.0,
+}
+
+
 def pdf_to_docx(pdf_bytes: bytes) -> bytes:
     """Convert PDF → DOCX via the pdf2docx library.
 
-    Quality is decent for digital PDFs; scanned PDFs come out as a single
-    block per page (effectively text + image layers) — callers wanting clean
-    DOCX from a scanned source should OCR first and use `text_to_docx`.
+    Fidelity note: PDF stores absolutely-positioned glyphs, not structure, so
+    a "faithful" DOCX has to be *reconstructed* by guessing which runs of text
+    form paragraphs, columns and tables. Simple single-column documents come
+    out well. Multi-column and design-tool layouts are approximations — see
+    `_PDF2DOCX_SETTINGS` for what we trade away and why.
+
+    Scanned PDFs come out as a single block per page (text + image layers);
+    callers wanting clean DOCX from a scanned source should OCR first and use
+    `text_to_docx`.
     """
     from pdf2docx import Converter
 
@@ -304,7 +344,7 @@ def pdf_to_docx(pdf_bytes: bytes) -> bytes:
     out_path = src_path.replace(".pdf", ".docx")
     try:
         cv = Converter(src_path)
-        cv.convert(out_path, start=0, end=None)
+        cv.convert(out_path, start=0, end=None, **_PDF2DOCX_SETTINGS)
         cv.close()
         return Path(out_path).read_bytes()
     finally:
