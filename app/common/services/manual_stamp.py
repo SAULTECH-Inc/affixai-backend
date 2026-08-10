@@ -29,7 +29,9 @@ from app.common.services.auto_affix import (
 
 
 PlacementKind = Literal[
-    "text", "number", "date", "time", "initials", "signature", "photo"
+    "text", "number", "date", "time", "initials", "signature", "photo",
+    # Phase 2 authoring kinds.
+    "image", "link", "richtext", "table",
 ]
 _TEXTUAL_KINDS = {"text", "number", "date", "time", "initials"}
 
@@ -52,6 +54,30 @@ class Placement:
     bold: bool = False
     italic: bool = False
     color: str = "#000000"  # hex CSS color
+
+    # ---- Phase 2 authoring fields ----------------------------------------
+    #
+    # `asset_id` (kind="image") references an asset the SERVER issued via the
+    # document's asset upload endpoint — never a client-supplied URL. That
+    # matters: the renderer resolves it against a per-document asset map, so a
+    # crafted placement can't make the server fetch an arbitrary address
+    # (SSRF) or read an arbitrary path via `local://../../etc/passwd`.
+    asset_id: str | None = None
+    url: str | None = None               # kind="link" — the href
+    html: str | None = None              # kind="richtext" — sanitized HTML
+    rows: list[list[str]] | None = None  # kind="table" — row-major cell text
+    header: bool = True                  # kind="table" — style the first row
+    col_widths: list[float] | None = None  # kind="table" — relative weights
+    border_color: str = "#333333"        # kind="table"
+    align: str = "left"                  # richtext/table text alignment
+    keep_proportion: bool = True         # kind="image"
+
+
+# Kinds that render into a rectangle and therefore need a sane width/height.
+_BOX_KINDS = {"signature", "photo", "image", "link", "richtext", "table"}
+
+# Alignment values we accept from the client, mapped to CSS.
+_ALIGNMENTS = {"left", "right", "center", "justify"}
 
 
 # ---- font + color helpers --------------------------------------------------
@@ -288,17 +314,186 @@ class StampOutcome:
     placed: int = 0
     failed: int = 0
     errors: list[str] = field(default_factory=list)
+    # Frames whose content didn't fit at full size. Not failures — the content
+    # is rendered, scaled down — but the editor should tell the user which
+    # boxes to enlarge rather than leaving them to discover shrunken text.
+    overflowed: list[int] = field(default_factory=list)
+
+
+# ---- Phase 2 renderers -----------------------------------------------------
+
+
+def _safe_align(align: str | None) -> str:
+    a = (align or "left").lower()
+    return a if a in _ALIGNMENTS else "left"
+
+
+def _htmlbox_family(family: str | None) -> str:
+    """Map our font aliases to a CSS family `insert_htmlbox` understands.
+
+    The htmlbox renderer resolves font names through CSS, not the Standard-14
+    short names that `insert_text` uses ("helv", "tiro"). Our bundled script
+    faces would need an Archive to be available here, which they aren't yet, so
+    they fall back to a generic family rather than silently rendering in a
+    default the caller didn't ask for.
+    """
+    fam = (family or "helv").lower()
+    base = _FAMILY_ALIASES.get(fam, "helv")
+    return {
+        "helv": "sans-serif",
+        "tiro": "serif",
+        "cour": "monospace",
+    }.get(base, "sans-serif")
+
+
+def protect_pdf(
+    pdf_bytes: bytes,
+    *,
+    user_password: str,
+    owner_password: str | None = None,
+    allow_printing: bool = True,
+) -> bytes:
+    """Encrypt a PDF with AES-256.
+
+    `user_password` is required to open the document; `owner_password` (when
+    given) governs permission changes. When no owner password is supplied we
+    reuse the user password rather than leaving it empty — an empty owner
+    password lets any reader silently strip the restrictions.
+
+    Passwords are never persisted: this runs on the way out to the client.
+    """
+    import fitz
+
+    if not user_password:
+        raise ValueError("A password is required.")
+    if len(user_password) < 4:
+        raise ValueError("Password must be at least 4 characters.")
+
+    perms = int(
+        fitz.PDF_PERM_ACCESSIBILITY  # never block screen readers
+        | fitz.PDF_PERM_COPY
+    )
+    if allow_printing:
+        perms |= int(fitz.PDF_PERM_PRINT)
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        buf = io.BytesIO()
+        doc.save(
+            buf,
+            encryption=fitz.PDF_ENCRYPT_AES_256,
+            user_pw=user_password,
+            owner_pw=owner_password or user_password,
+            permissions=perms,
+            deflate=True,
+        )
+        return buf.getvalue()
+    finally:
+        doc.close()
+
+
+def _render_htmlbox(
+    page: Any,
+    rect: Any,
+    html: str,
+    *,
+    css: str | None = None,
+) -> tuple[bool, bool]:
+    """Render `html` into `rect`, returning (rendered, overflowed).
+
+    `insert_htmlbox` has two modes worth knowing about:
+
+      * `scale_low=0` (its default) silently shrinks the content until it fits.
+        A paragraph can come out at 40% size with no signal — unacceptable in an
+        editor, where the user would just see mysteriously tiny text.
+      * `scale_low=1` refuses to shrink and returns -1 when the content doesn't
+        fit, rendering nothing at all.
+
+    Neither alone is right, so we try strict first for a clean overflow signal,
+    then fall back to the shrinking mode so the content still appears. The
+    caller surfaces the overflow so the user can enlarge the frame.
+    """
+    try:
+        spare, _scale = page.insert_htmlbox(rect, html, css=css, scale_low=1)
+    except Exception as exc:
+        logger.warning(f"insert_htmlbox (strict) failed: {exc}")
+        return False, False
+
+    if spare >= 0:
+        return True, False
+
+    # Didn't fit at full size — re-render allowing downscale so the content is
+    # visible rather than absent.
+    try:
+        page.insert_htmlbox(rect, html, css=css)
+        return True, True
+    except Exception as exc:
+        logger.warning(f"insert_htmlbox (scaled) failed: {exc}")
+        return False, True
+
+
+def _table_html(p: Placement) -> str:
+    """Build an HTML table from a placement's rows.
+
+    Cell text is escaped: it's user content, and `insert_htmlbox` parses HTML,
+    so an unescaped "<" would corrupt the table or inject markup into the
+    rendered PDF.
+    """
+    from html import escape
+
+    rows = p.rows or []
+    border = parse_color(p.border_color)
+    border_hex = "#%02x%02x%02x" % tuple(int(c * 255) for c in border)
+    align = _safe_align(p.align)
+
+    # Relative column weights → percentage widths. Falls back to equal columns.
+    widths: list[str] = []
+    ncols = max((len(r) for r in rows), default=0)
+    if p.col_widths and ncols and len(p.col_widths) == ncols:
+        total = sum(w for w in p.col_widths if w > 0) or 1.0
+        widths = [f"{max(1.0, w) / total * 100:.2f}%" for w in p.col_widths]
+    elif ncols:
+        widths = [f"{100 / ncols:.2f}%"] * ncols
+
+    cell_base = (
+        f"border:1px solid {border_hex};padding:3px 5px;"
+        f"font-size:{p.fontsize}pt;text-align:{align};"
+    )
+    out = ['<table style="border-collapse:collapse;width:100%">']
+    for r_i, row in enumerate(rows):
+        out.append("<tr>")
+        for c_i in range(ncols):
+            text = escape(str(row[c_i])) if c_i < len(row) else ""
+            width = f"width:{widths[c_i]};" if c_i < len(widths) else ""
+            if p.header and r_i == 0:
+                out.append(
+                    f'<th style="{cell_base}{width}background:#eeeeee;'
+                    f'font-weight:bold">{text}</th>'
+                )
+            else:
+                out.append(f'<td style="{cell_base}{width}">{text}</td>')
+        out.append("</tr>")
+    out.append("</table>")
+    return "".join(out)
 
 
 async def restamp_pdf(
     pdf_bytes: bytes,
     placements: list[Placement],
     user_id: UUID,
+    assets: dict[str, str] | None = None,
 ) -> tuple[bytes, StampOutcome]:
     """Re-stamp a PDF using explicit placements provided by the client.
 
     The vault dict and default signature/photo are pulled once up-front so we
     don't hit the DB per placement.
+
+    `assets` maps asset_id → storage URL for `kind="image"` placements. It must
+    come from the server's own record of what was uploaded to this document,
+    never from the request body: `fetch_file_bytes` will retrieve any http(s)
+    URL and resolves `local://` against the uploads root by plain path join, so
+    a client-supplied URL would be an SSRF and path-traversal hole. Passing the
+    map in keeps that decision at the caller, which knows the document.
     """
     import fitz
 
@@ -306,6 +501,27 @@ async def restamp_pdf(
     sig_pair = await get_user_default_signature(user_id)
     photo_bytes = await get_user_default_photo(user_id)
     sig_bytes = sig_pair[0] if sig_pair else None
+
+    # Fetched image bytes, keyed by asset_id — the same image used on every
+    # page should be fetched once.
+    asset_cache: dict[str, bytes | None] = {}
+
+    async def load_asset(asset_id: str) -> bytes | None:
+        if asset_id in asset_cache:
+            return asset_cache[asset_id]
+        url = (assets or {}).get(asset_id)
+        if not url:
+            asset_cache[asset_id] = None
+            return None
+        try:
+            from app.common.services.local_storage import fetch_file_bytes
+
+            data = await fetch_file_bytes(url)
+        except Exception as exc:
+            logger.warning(f"asset {asset_id} fetch failed: {exc}")
+            data = None
+        asset_cache[asset_id] = data
+        return data
 
     outcome = StampOutcome()
     try:
@@ -400,6 +616,107 @@ async def restamp_pdf(
                 cx, cy = _clamp_to_page(p.x, p.y, p.width, p.height, page_w, page_h)
                 rect = fitz.Rect(cx, cy, cx + p.width, cy + p.height)
                 page.insert_image(rect, stream=photo_bytes, keep_proportion=True)
+                outcome.placed += 1
+
+            elif p.kind == "image":
+                if not p.asset_id:
+                    outcome.failed += 1
+                    outcome.errors.append(
+                        f"image placement on page {p.page} has no asset_id"
+                    )
+                    continue
+                img_bytes = await load_asset(p.asset_id)
+                if not img_bytes:
+                    outcome.failed += 1
+                    outcome.errors.append(
+                        f"image asset {p.asset_id} is not available on this document"
+                    )
+                    continue
+                cx, cy = _clamp_to_page(p.x, p.y, p.width, p.height, page_w, page_h)
+                rect = fitz.Rect(cx, cy, cx + p.width, cy + p.height)
+                page.insert_image(
+                    rect, stream=img_bytes, keep_proportion=p.keep_proportion
+                )
+                outcome.placed += 1
+
+            elif p.kind == "link":
+                if not p.url:
+                    outcome.failed += 1
+                    outcome.errors.append(f"link placement on page {p.page} has no url")
+                    continue
+                cx, cy = _clamp_to_page(p.x, p.y, p.width, p.height, page_w, page_h)
+                rect = fitz.Rect(cx, cy, cx + p.width, cy + p.height)
+                # Optional visible label. A link with no text is still a valid
+                # clickable region (e.g. over an image), so this is not required.
+                label = _resolve_text(p, vault)
+                if label:
+                    fontname = resolve_fontname(
+                        p.font_family, bold=p.bold, italic=p.italic
+                    )
+                    if is_custom_family(p.font_family):
+                        fontname = register_custom_font(page, p.font_family) or "helv"
+                    page.insert_text(
+                        (cx, cy + p.fontsize),
+                        label,
+                        fontsize=p.fontsize,
+                        fontname=fontname,
+                        # Link-blue unless the client chose a colour, so a link
+                        # reads as one.
+                        color=parse_color(
+                            p.color if p.color != "#000000" else "#1a56db"
+                        ),
+                    )
+                page.insert_link(
+                    {"kind": fitz.LINK_URI, "from": rect, "uri": p.url}
+                )
+                outcome.placed += 1
+
+            elif p.kind == "richtext":
+                if not p.html:
+                    outcome.failed += 1
+                    outcome.errors.append(
+                        f"richtext placement on page {p.page} has no html"
+                    )
+                    continue
+                cx, cy = _clamp_to_page(p.x, p.y, p.width, p.height, page_w, page_h)
+                rect = fitz.Rect(cx, cy, cx + p.width, cy + p.height)
+                css = (
+                    f"* {{font-family:{_htmlbox_family(p.font_family)};"
+                    f"font-size:{p.fontsize}pt;color:{p.color};"
+                    f"text-align:{_safe_align(p.align)};}}"
+                )
+                rendered, overflowed = _render_htmlbox(page, rect, p.html, css=css)
+                if not rendered:
+                    outcome.failed += 1
+                    outcome.errors.append(
+                        f"richtext on page {p.page} could not be rendered"
+                    )
+                    continue
+                if overflowed:
+                    outcome.overflowed.append(p.page)
+                outcome.placed += 1
+
+            elif p.kind == "table":
+                if not p.rows:
+                    outcome.failed += 1
+                    outcome.errors.append(
+                        f"table placement on page {p.page} has no rows"
+                    )
+                    continue
+                cx, cy = _clamp_to_page(p.x, p.y, p.width, p.height, page_w, page_h)
+                rect = fitz.Rect(cx, cy, cx + p.width, cy + p.height)
+                rendered, overflowed = _render_htmlbox(
+                    page, rect, _table_html(p),
+                    css=f"* {{font-family:{_htmlbox_family(p.font_family)};}}",
+                )
+                if not rendered:
+                    outcome.failed += 1
+                    outcome.errors.append(
+                        f"table on page {p.page} could not be rendered"
+                    )
+                    continue
+                if overflowed:
+                    outcome.overflowed.append(p.page)
                 outcome.placed += 1
 
             else:

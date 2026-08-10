@@ -129,7 +129,10 @@ class PlacementDto(BaseModel):
     """One placement the editor wants stamped onto the PDF."""
     kind: str = Field(
         default="text",
-        description="text | number | date | time | initials | signature | photo",
+        description=(
+            "text | number | date | time | initials | signature | photo "
+            "| image | link | richtext | table"
+        ),
     )
     page: int = Field(ge=0)
     x: float
@@ -146,6 +149,20 @@ class PlacementDto(BaseModel):
     bold: bool = False
     italic: bool = False
     color: str = Field(default="#000000", description="hex like #1a2b3c")
+
+    # ---- Authoring kinds -------------------------------------------------
+    # `asset_id` is an id the server issued from the document's asset upload.
+    # Deliberately not a URL: the renderer resolves it against the server's own
+    # asset record, so a placement can't aim it at an arbitrary address.
+    asset_id: str | None = None
+    url: str | None = Field(default=None, max_length=2048)   # kind="link"
+    html: str | None = Field(default=None, max_length=20000)  # kind="richtext"
+    rows: list[list[str]] | None = None                       # kind="table"
+    header: bool = True
+    col_widths: list[float] | None = None
+    border_color: str = "#333333"
+    align: str = Field(default="left", description="left | right | center | justify")
+    keep_proportion: bool = True
 
 
 class RestampDto(BaseModel):
@@ -219,3 +236,23 @@ class PageOpOut(BaseModel):
     page_count: int
     placements_kept: int
     placements_dropped: int
+
+
+class AssetOut(BaseModel):
+    """An image the server has accepted for use in a document.
+
+    The client references `asset_id` from an image placement. It never supplies
+    a URL — the server resolves the id against its own record of what was
+    uploaded, so a placement can't point the renderer at an arbitrary address.
+    """
+    asset_id: str
+    mime_type: str
+    size: int
+    width: int | None = None
+    height: int | None = None
+
+
+class ProtectDto(BaseModel):
+    password: str = Field(min_length=4, max_length=128)
+    owner_password: str | None = Field(default=None, max_length=128)
+    allow_printing: bool = True
