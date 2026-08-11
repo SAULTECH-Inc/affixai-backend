@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -128,7 +129,10 @@ class PlacementDto(BaseModel):
     """One placement the editor wants stamped onto the PDF."""
     kind: str = Field(
         default="text",
-        description="text | number | date | time | initials | signature | photo",
+        description=(
+            "text | number | date | time | initials | signature | photo "
+            "| image | link | richtext | table"
+        ),
     )
     page: int = Field(ge=0)
     x: float
@@ -145,6 +149,20 @@ class PlacementDto(BaseModel):
     bold: bool = False
     italic: bool = False
     color: str = Field(default="#000000", description="hex like #1a2b3c")
+
+    # ---- Authoring kinds -------------------------------------------------
+    # `asset_id` is an id the server issued from the document's asset upload.
+    # Deliberately not a URL: the renderer resolves it against the server's own
+    # asset record, so a placement can't aim it at an arbitrary address.
+    asset_id: str | None = None
+    url: str | None = Field(default=None, max_length=2048)   # kind="link"
+    html: str | None = Field(default=None, max_length=20000)  # kind="richtext"
+    rows: list[list[str]] | None = None                       # kind="table"
+    header: bool = True
+    col_widths: list[float] | None = None
+    border_color: str = "#333333"
+    align: str = Field(default="left", description="left | right | center | justify")
+    keep_proportion: bool = True
 
 
 class RestampDto(BaseModel):
@@ -179,3 +197,62 @@ class EmailDocumentDto(BaseModel):
 class EmailDocumentOut(BaseModel):
     sent_to: str
     document_name: str
+
+
+# ---- Authoring (blank documents + page operations) -------------------------
+
+
+class CreateBlankDto(BaseModel):
+    """Start a document from a blank page rather than an upload."""
+    title: str | None = Field(default=None, max_length=200)
+    page_size: str = "a4"
+    pages: int = Field(default=1, ge=1, le=200)
+    landscape: bool = False
+    document_type: DocumentType = DocumentType.OTHER
+
+
+class PageOpDto(BaseModel):
+    """A single page-level edit.
+
+    `op` decides which of the optional fields apply:
+      add       — at (None = append), count, page_size, landscape
+      duplicate — index
+      delete    — index
+      reorder   — order (a full permutation of the current page indices)
+      rotate    — index, degrees
+    """
+    op: Literal["add", "duplicate", "delete", "reorder", "rotate"]
+    index: int | None = Field(default=None, ge=0)
+    at: int | None = Field(default=None, ge=0)
+    count: int = Field(default=1, ge=1, le=200)
+    page_size: str | None = None
+    landscape: bool = False
+    order: list[int] | None = None
+    degrees: int = 90
+
+
+class PageOpOut(BaseModel):
+    document_id: UUID
+    page_count: int
+    placements_kept: int
+    placements_dropped: int
+
+
+class AssetOut(BaseModel):
+    """An image the server has accepted for use in a document.
+
+    The client references `asset_id` from an image placement. It never supplies
+    a URL — the server resolves the id against its own record of what was
+    uploaded, so a placement can't point the renderer at an arbitrary address.
+    """
+    asset_id: str
+    mime_type: str
+    size: int
+    width: int | None = None
+    height: int | None = None
+
+
+class ProtectDto(BaseModel):
+    password: str = Field(min_length=4, max_length=128)
+    owner_password: str | None = Field(default=None, max_length=128)
+    allow_printing: bool = True

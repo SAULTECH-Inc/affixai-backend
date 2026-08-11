@@ -1,6 +1,7 @@
 """Document routes: upload, OCR, auto-fill, signing, sharing, download."""
 from __future__ import annotations
 
+import io
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
@@ -40,14 +41,19 @@ from app.db.models.document import Document, DocumentStatus, DocumentType, Proce
 from app.db.models.user import User
 from app.models.auth_schemas import MessageOut
 from app.models.document_schemas import (
+    AssetOut,
     AutoSignOut,
     AutoSignReport,
+    CreateBlankDto,
     DocumentOut,
     DocumentStatsOut,
     DownloadUrlOut,
     EmailDocumentDto,
     EmailDocumentOut,
+    PageOpDto,
+    PageOpOut,
     PresignedUploadOut,
+    ProtectDto,
     RestampDto,
     RestampOut,
     SaveDraftDto,
@@ -637,6 +643,341 @@ async def stream_document_file(
     )
 
 
+# ---- Authoring: blank documents + page operations --------------------------
+
+
+def _document_metadata(doc: Document) -> dict:
+    """`Document.metadata` as a dict.
+
+    The column is a JSONField, so it can legitimately hold a list. Every caller
+    here wants key/value access, and treating a stray list as "no metadata" is
+    safer than raising mid-request.
+    """
+    meta = doc.metadata
+    return meta if isinstance(meta, dict) else {}
+
+
+def _document_assets(doc: Document) -> dict[str, str]:
+    """asset_id → storage URL for images uploaded to this document.
+
+    This is the only source of URLs the renderer is allowed to use. Clients send
+    asset ids; resolving them here means a crafted placement cannot point the
+    server at an internal address or a path outside the uploads root.
+    """
+    raw = _document_metadata(doc).get("assets")
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for aid, entry in raw.items():
+        if isinstance(entry, dict) and isinstance(entry.get("url"), str):
+            out[str(aid)] = entry["url"]
+    return out
+
+
+# Images we accept as document assets. Deliberately a closed set of raster
+# formats PyMuPDF can embed — notably excluding SVG, which is an XML document
+# with script and external-entity surface, not an image.
+_ASSET_MIME_BY_MAGIC: list[tuple[bytes, str]] = [
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+    (b"BM", "image/bmp"),
+]
+_ASSET_MAX_BYTES = 10 * 1024 * 1024
+_ASSET_MAX_PER_DOC = 50
+
+
+@router.post("/{document_id}/assets", response_model=AssetOut)
+async def upload_document_asset(
+    document_id: UUID,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+) -> AssetOut:
+    """Upload an image for use in an `image` placement.
+
+    Returns an `asset_id`. The client puts that id on a placement; it never
+    handles or supplies a URL.
+
+    The format is decided by magic bytes rather than the declared content type,
+    since the declared type is attacker-controlled and we hand these bytes to an
+    image decoder.
+    """
+    doc = await Document.get_or_none(id=document_id, user_id=user.id, deleted_at=None)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
+    if len(content) > _ASSET_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Images must be {_ASSET_MAX_BYTES // (1024 * 1024)}MB or smaller.",
+        )
+
+    mime = next(
+        (m for magic, m in _ASSET_MIME_BY_MAGIC if content.startswith(magic)), None
+    )
+    if not mime:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported image. Use PNG, JPEG, GIF or BMP.",
+        )
+
+    existing = _document_assets(doc)
+    if len(existing) >= _ASSET_MAX_PER_DOC:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"This document already has {_ASSET_MAX_PER_DOC} images.",
+        )
+
+    # Confirm it actually decodes before we accept it — a file with the right
+    # magic bytes but corrupt content would otherwise fail later, during a
+    # render, where the error is far less obvious.
+    width = height = None
+    try:
+        from PIL import Image as _Image
+
+        with _Image.open(io.BytesIO(content)) as im:
+            width, height = im.size
+            im.verify()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"That image could not be read: {exc}",
+        ) from exc
+
+    ext = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif",
+           "image/bmp": "bmp"}[mime]
+    stored = local_save_bytes(content, f"asset.{ext}", folder="assets")
+    asset_id = uuid4().hex
+
+    meta = _document_metadata(doc)
+    assets = dict(meta.get("assets") or {})
+    assets[asset_id] = {
+        "url": stored["url"],
+        "mime_type": mime,
+        "size": len(content),
+        "width": width,
+        "height": height,
+    }
+    doc.metadata = {**meta, "assets": assets}
+    await doc.save()
+
+    return AssetOut(
+        asset_id=asset_id, mime_type=mime, size=len(content),
+        width=width, height=height,
+    )
+
+
+@router.post("/{document_id}/protect")
+async def protect_document(
+    document_id: UUID,
+    dto: ProtectDto,
+    user: User = Depends(get_current_user),
+):
+    """Return the document encrypted with AES-256, password-protected.
+
+    Streams the encrypted bytes back rather than storing them: the password is
+    the user's, and persisting either it or a copy the platform can't open adds
+    risk without adding value.
+    """
+    from app.common.services.manual_stamp import protect_pdf
+
+    doc = await Document.get_or_none(id=document_id, user_id=user.id, deleted_at=None)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    url = doc.completed_file_url or doc.file_url
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No file available for this document"
+        )
+    source = await fetch_file_bytes(url)
+
+    try:
+        out_bytes = protect_pdf(
+            source,
+            user_password=dto.password,
+            owner_password=dto.owner_password,
+            allow_printing=dto.allow_printing,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        logger.exception("protect failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not protect the document: {exc}",
+        ) from exc
+
+    base = (doc.original_file_name or "document").rsplit(".", 1)[0]
+    safe_base = "".join(c for c in base if c not in '"\\\r\n') or "document"
+    await log_audit(
+        user_id=user.id,
+        action=AuditAction.DOCUMENT_DOWNLOADED,
+        entity_type="document",
+        entity_id=str(doc.id),
+        description="Downloaded password-protected copy",
+    )
+    return Response(
+        content=out_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_base}-protected.pdf"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+@router.post("/blank", response_model=DocumentOut)
+async def create_blank_document(
+    dto: CreateBlankDto,
+    user: User = Depends(get_current_user),
+) -> DocumentOut:
+    """Start a document from a blank page instead of an upload.
+
+    The result is an ordinary Document row, so it flows straight into the
+    existing placement editor, signing and audit paths — the only difference is
+    `metadata.origin`, which records that the user authored it rather than
+    uploaded it.
+    """
+    from app.common.services.pdf_authoring import create_blank_pdf
+
+    try:
+        pdf_bytes = create_blank_pdf(
+            page_size=dto.page_size, pages=dto.pages, landscape=dto.landscape
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    title = (dto.title or "Untitled document").strip() or "Untitled document"
+    file_name = f"{title}.pdf" if not title.lower().endswith(".pdf") else title
+    stored = local_save_bytes(pdf_bytes, file_name, folder="authored")
+
+    doc = await Document.create(
+        user_id=user.id,
+        file_name=stored["key"],
+        original_file_name=file_name,
+        file_url=stored["url"],
+        file_mime_type="application/pdf",
+        file_size=len(pdf_bytes),
+        document_type=dto.document_type,
+        # DRAFT, not UPLOADED: there is nothing to extract from a blank page,
+        # and the Documents page's Drafts filter is where the user will look
+        # for something they started but haven't finished.
+        status=DocumentStatus.DRAFT,
+        processing_mode=ProcessingMode.MANUAL,
+        field_placements=[],
+        metadata={
+            "origin": "created",
+            "page_size": dto.page_size,
+            "landscape": dto.landscape,
+            "page_count": dto.pages,
+        },
+    )
+    await log_audit(
+        user_id=user.id,
+        action=AuditAction.DOCUMENT_UPLOADED,
+        entity_type="document",
+        entity_id=str(doc.id),
+        description=f"Created blank document ({dto.pages} × {dto.page_size})",
+    )
+    return _to_out(doc)
+
+
+@router.post("/{document_id}/pages", response_model=PageOpOut)
+async def edit_document_pages(
+    document_id: UUID,
+    dto: PageOpDto,
+    user: User = Depends(get_current_user),
+) -> PageOpOut:
+    """Add, duplicate, delete, reorder or rotate pages.
+
+    Placements are migrated through the operation's index map, so anything the
+    user has already positioned follows its page. Placements on a deleted page
+    are dropped — nothing else can be done with them — and the count is returned
+    so the editor can tell the user what happened.
+    """
+    from app.common.services import pdf_authoring as pa
+
+    doc = await Document.get_or_none(id=document_id, user_id=user.id, deleted_at=None)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Operate on the working file. A signed/completed render is a finished
+    # artifact; re-paginating under it would invalidate the signature layout.
+    if doc.completed_file_url:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This document has already been rendered. Duplicate it to keep editing pages.",
+        )
+    if not doc.file_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No file available for this document"
+        )
+
+    source = await fetch_file_bytes(doc.file_url)
+    before = list(doc.field_placements or [])
+
+    try:
+        if dto.op == "add":
+            out_bytes, index_map = pa.add_pages(
+                source, at=dto.at, count=dto.count,
+                page_size=dto.page_size, landscape=dto.landscape,
+            )
+        elif dto.op == "duplicate":
+            if dto.index is None:
+                raise ValueError("duplicate needs an `index`.")
+            out_bytes, index_map = pa.duplicate_page(source, dto.index)
+        elif dto.op == "delete":
+            if dto.index is None:
+                raise ValueError("delete needs an `index`.")
+            out_bytes, index_map = pa.delete_page(source, dto.index)
+        elif dto.op == "reorder":
+            if not dto.order:
+                raise ValueError("reorder needs an `order` list.")
+            out_bytes, index_map = pa.reorder_pages(source, dto.order)
+        else:  # rotate
+            if dto.index is None:
+                raise ValueError("rotate needs an `index`.")
+            out_bytes, index_map = pa.rotate_page(source, dto.index, dto.degrees)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        logger.exception("page operation failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Page operation failed: {exc}",
+        ) from exc
+
+    after = pa.remap_placements(before, index_map)
+
+    stored = local_save_bytes(out_bytes, doc.original_file_name or "document.pdf", folder="authored")
+    doc.file_url = stored["url"]
+    doc.file_name = stored["key"]
+    doc.file_size = len(out_bytes)
+    doc.field_placements = after
+    doc.status = DocumentStatus.DRAFT
+    pages_now = pa.page_count(out_bytes)
+    doc.metadata = {**(doc.metadata or {}), "page_count": pages_now}
+    await doc.save()
+
+    return PageOpOut(
+        document_id=doc.id,
+        page_count=pages_now,
+        placements_kept=len(after),
+        placements_dropped=max(0, len(before) - len(after)),
+    )
+
+
 # ---- Document processing layer (Phase B): format conversion + extraction ---
 
 
@@ -938,11 +1279,25 @@ async def restamp_document(
             bold=p.bold,
             italic=p.italic,
             color=p.color,
+            asset_id=p.asset_id,
+            url=p.url,
+            html=p.html,
+            rows=p.rows,
+            header=p.header,
+            col_widths=p.col_widths,
+            border_color=p.border_color,
+            align=p.align,
+            keep_proportion=p.keep_proportion,
         )
         for p in payload.placements
     ]
 
-    stamped_bytes, outcome = await restamp_pdf(pdf_bytes, placements, user.id)
+    # The asset map comes from the server's own record for THIS document, never
+    # from the request — see restamp_pdf's docstring on why that matters.
+    assets = _document_assets(doc)
+    stamped_bytes, outcome = await restamp_pdf(
+        pdf_bytes, placements, user.id, assets=assets
+    )
 
     stored = local_save_bytes(
         stamped_bytes,

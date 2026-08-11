@@ -19,6 +19,7 @@ from app.api.routes import (
     workflow,
     data_vault,
     documents,
+    templates,
     enterprises,
     health,
     leads,
@@ -161,6 +162,7 @@ app.include_router(vault_entries.router, prefix="/api/v1/data-vault/entries", ta
 # Registered before documents.router to avoid path parameter matching collisions (e.g. pending-mine vs {document_id}).
 app.include_router(collaboration.router, prefix="/api/v1/documents", tags=["Collaboration"])
 app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
+app.include_router(templates.router, prefix="/api/v1/templates", tags=["Templates"])
 # Workflow layer (Phase D): owner-side controls under /documents/<id>/...
 # and guest-side actions under /shared/<token>/...
 app.include_router(workflow.owner_router, prefix="/api/v1/documents", tags=["Workflow"])

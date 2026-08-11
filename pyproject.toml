@@ -63,6 +63,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# OCR pre-pass for scanned PDF → DOCX. Deliberately an extra, not a runtime
+# dependency: it needs the `tesseract` and `ghostscript` binaries, which
+# Vercel's Python runtime can't provide, and adding it to the base set would
+# push the function bundle back toward the 500MB limit for a feature that
+# can't run there. Install on hosts that can supply the binaries:
+#   pip install '.[ocr]'   (plus: brew install tesseract ghostscript)
+# Without it, scanned PDF → DOCX returns 501 instead of an empty document.
+ocr = [
+    "ocrmypdf>=16.0.0",
+]
 dev = [
     "pytest==7.4.4",
     "pytest-asyncio==0.23.3",
