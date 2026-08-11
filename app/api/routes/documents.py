@@ -771,6 +771,42 @@ async def upload_document_asset(
     )
 
 
+@router.get("/{document_id}/assets/{asset_id}")
+async def get_document_asset(
+    document_id: UUID,
+    asset_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Serve an uploaded asset's bytes.
+
+    The editor needs this to preview images on a document it reopens — the
+    placement only stores an asset id, and the underlying storage URL is never
+    given to the client. Resolution goes through the document's own asset
+    record, so the id can't be used to reach anything else.
+    """
+    doc = await Document.get_or_none(id=document_id, user_id=user.id, deleted_at=None)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    entry = (_document_metadata(doc).get("assets") or {}).get(asset_id)
+    if not isinstance(entry, dict) or not entry.get("url"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    try:
+        data = await fetch_file_bytes(entry["url"])
+    except Exception as exc:
+        logger.warning(f"asset {asset_id} read failed: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Asset file is unavailable"
+        ) from exc
+
+    return Response(
+        content=data,
+        media_type=entry.get("mime_type") or "application/octet-stream",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
 @router.post("/{document_id}/protect")
 async def protect_document(
     document_id: UUID,
