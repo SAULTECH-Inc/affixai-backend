@@ -278,6 +278,26 @@ async def google_login() -> RedirectResponse:
     return RedirectResponse(url)
 
 
+def _google_error(resp) -> str:
+    """Human-readable reason from a Google OAuth error response.
+
+    Google replies with {"error": "invalid_grant", "error_description": "..."}.
+    The two we see in practice:
+      invalid_grant         — the authorization code was already used or has
+                              expired. Reloading the callback URL replays the
+                              same code and always produces this.
+      redirect_uri_mismatch — GOOGLE_REDIRECT_URI doesn't exactly match the URI
+                              registered in the Google console.
+    """
+    try:
+        body = resp.json()
+    except ValueError:
+        return (resp.text or "")[:200] or "no response body"
+    err = body.get("error") or "unknown_error"
+    desc = body.get("error_description")
+    return f"{err} — {desc}" if desc else str(err)
+
+
 @router.get("/google/callback")
 async def google_callback(code: str | None = None, state: str | None = None) -> RedirectResponse:
     """Exchange the code, find-or-create the user, redirect to frontend with tokens."""
@@ -301,13 +321,36 @@ async def google_callback(code: str | None = None, state: str | None = None) -> 
                 "grant_type": "authorization_code",
             },
         )
-        token_resp.raise_for_status()
-        access_tok = token_resp.json()["access_token"]
+        # Don't use raise_for_status() here. Google puts the actual reason in
+        # the response body ({"error": "invalid_grant", ...}) and
+        # raise_for_status discards it, leaving only "Client error '400 Bad
+        # Request'" — which says nothing about whether the code was replayed,
+        # the redirect_uri disagrees with the one registered, or the client
+        # secret is wrong.
+        if token_resp.status_code >= 400:
+            reason = _google_error(token_resp)
+            logger.error(f"google token exchange failed: {token_resp.status_code} {reason}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Google sign-in failed: {reason}",
+            )
+        access_tok = token_resp.json().get("access_token")
+        if not access_tok:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Google returned no access token",
+            )
         profile_resp = await client.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {access_tok}"},
         )
-        profile_resp.raise_for_status()
+        if profile_resp.status_code >= 400:
+            reason = _google_error(profile_resp)
+            logger.error(f"google userinfo failed: {profile_resp.status_code} {reason}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not read your Google profile: {reason}",
+            )
         profile = profile_resp.json()
 
     email = profile.get("email", "").lower()
