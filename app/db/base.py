@@ -5,7 +5,7 @@ The TORTOISE_ORM dict is the single source of truth referenced by:
   - aerich CLI (`aerich init -t app.db.base.TORTOISE_ORM`)
 """
 import os as _os
-from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
+from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs, unquote as _unquote
 
 from app.core.config import settings
 
@@ -54,42 +54,49 @@ def _connections_config() -> dict:
     """
     url = settings.DATABASE_URL
 
-    if not _os.environ.get("VERCEL"):
-        # Local / non-serverless: use the DSN string directly, let Tortoise
-        # apply its default pool sizing.
+    # SQLite (local dev): Tortoise handles the DSN string directly.
+    if url.startswith("sqlite"):
         return {"default": url}
 
-    # Serverless path — parse the DSN and inject pool constraints.
-    # Tortoise accepts either asyncpg or postgresql scheme; normalise to the
-    # urllib-friendly "postgresql" before parsing.
+    # Always build an explicit credentials dict rather than handing Tortoise the
+    # raw DSN. Tortoise forwards URL query params straight to asyncpg.connect(),
+    # which has no `sslmode` kwarg (TypeError) and treats ssl="disable"/"false"
+    # strings as SSL-*on* — so SSL can only be controlled reliably from here.
+    # It also lets us URL-decode the password (urlparse does NOT), so a password
+    # like "MadAdmin@123" written as "MadAdmin%40123" authenticates correctly.
     normalised = url.replace("postgres://", "postgresql://", 1)
     p = _urlparse(normalised)
 
     creds: dict = {
         "host": p.hostname or "localhost",
         "port": p.port or 5432,
-        "user": p.username or "postgres",
-        "password": p.password or "",
+        "user": _unquote(p.username) if p.username else "postgres",
+        "password": _unquote(p.password) if p.password else "",
         "database": (p.path or "/postgres").lstrip("/"),
-        "minsize": 1,
-        "maxsize": 1,  # 1 connection per Vercel instance prevents pool exhaustion
     }
 
-    # Most hosted Postgres providers (Neon, Supabase, Railway) require SSL but
-    # use their own CA chains (self-signed or intermediate), so ssl=True (which
-    # enforces full certificate verification) always fails.  asyncpg 0.27+
-    # accepts ssl="require" which encrypts the connection without verifying the
-    # certificate chain — the right default for serverless / hosted databases.
-    if p.query:
-        sslmode = _parse_qs(p.query).get("sslmode", [""])[0]
-        if sslmode == "disable":
-            creds["ssl"] = False
-        elif sslmode in ("verify-ca", "verify-full"):
-            creds["ssl"] = True   # strict verification — user opted in explicitly
-        else:
-            creds["ssl"] = "require"   # encrypt but don't verify chain
-    elif p.hostname and p.hostname not in ("localhost", "127.0.0.1", "::1"):
-        creds["ssl"] = "require"  # remote host — require encryption, skip chain verify
+    # SSL resolution → asyncpg's real values. A remote host with no explicit
+    # sslmode defaults to "prefer": it encrypts when the server supports it
+    # (Neon/Supabase/etc., without chain verification) and transparently falls
+    # back to plaintext when the server has no SSL — so a self-hosted Postgres
+    # without SSL still connects. localhost defaults to off.
+    sslmode = (_parse_qs(p.query).get("sslmode", [""])[0] if p.query else "").lower()
+    is_local = (p.hostname or "") in ("localhost", "127.0.0.1", "::1")
+    if sslmode in ("disable", "disabled", "off", "false", "0", "none"):
+        creds["ssl"] = False
+    elif sslmode in ("verify-ca", "verify-full"):
+        creds["ssl"] = True
+    elif sslmode in ("require", "prefer", "allow"):
+        creds["ssl"] = sslmode  # honor the exact mode
+    elif not is_local:
+        creds["ssl"] = "prefer"
+    # localhost with no sslmode → leave ssl unset (no SSL)
+
+    # On Vercel (serverless) each cold-start opens its own asyncpg pool; cap it
+    # so concurrent cold-starts can't exhaust the database's max_connections.
+    if _os.environ.get("VERCEL"):
+        creds["minsize"] = 1
+        creds["maxsize"] = 1
 
     return {
         "default": {
