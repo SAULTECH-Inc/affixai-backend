@@ -65,6 +65,9 @@ dependencies = [
     # deliberately NOT dependencies: google-api-python-client alone bundles
     # ~100MB of static API discovery documents and pushed the Vercel function
     # over its 500MB limit.
+    # AI notes (handwritten handout → lesson note). Claude is the primary
+    # model; the self-hosted fallback talks to its server over httpx.
+    "anthropic>=2.6.0,<3",
     # Logging
     "loguru==0.7.2",
 ]
@@ -153,6 +156,9 @@ sentry-sdk = {extras = ["fastapi"], version = "2.19.2"}
 # Caching / secondary stores
 redis = "5.0.1"
 pymongo = "4.6.1"
+
+# AI notes — must match [project].dependencies
+anthropic = ">=2.6.0,<3"
 
 # Auth & Crypto
 python-dotenv = "1.0.0"

@@ -133,6 +133,39 @@ class Settings(BaseSettings):
     MODEL_CACHE_DIR: str = "./models"
     CONFIDENCE_THRESHOLD: float = 0.7
     
+    # ---- AI notes (handwritten handout → lesson note) ----------------------
+    #
+    # Providers are tried in NOTES_PROVIDER_ORDER. A provider with no
+    # credentials is skipped; one that fails (no credits left, bad key, rate
+    # limited, down, refused) hands the call to the next. With nothing
+    # configured the notes endpoint returns 503.
+    NOTES_PROVIDER_ORDER: Annotated[List[str], NoDecode] = ["anthropic", "selfhosted"]
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-opus-5-5"
+    # Our own model server. Anything that speaks the OpenAI-compatible
+    # /chat/completions API works: Ollama (http://host:11434/v1), vLLM,
+    # LM Studio, llama.cpp server. The vision model reads the page photos;
+    # the text model writes the note (empty = reuse the vision model).
+    SELFHOSTED_LLM_BASE_URL: str = ""
+    SELFHOSTED_LLM_API_KEY: str = ""
+    SELFHOSTED_VISION_MODEL: str = "qwen2.5vl:7b"
+    SELFHOSTED_TEXT_MODEL: str = ""
+    SELFHOSTED_TIMEOUT_SECONDS: float = 300.0
+    NOTES_MAX_PAGES: int = 10
+
+    # Speech-to-text for voice notes. Claude doesn't take audio, so this has
+    # its own providers, tried in STT_PROVIDER_ORDER with the same fallback
+    # rules. Both speak the OpenAI-compatible /audio/transcriptions API.
+    STT_PROVIDER_ORDER: Annotated[List[str], NoDecode] = ["cloud", "selfhosted"]
+    STT_CLOUD_BASE_URL: str = "https://api.openai.com/v1"
+    STT_CLOUD_API_KEY: str = ""
+    STT_CLOUD_MODEL: str = "gpt-4o-transcribe"
+    # Our own Whisper server (speaches / faster-whisper-server, vLLM...).
+    # Swap the model for a Nigerian-accent fine-tune once it's benchmarked.
+    SELFHOSTED_STT_BASE_URL: str = ""
+    SELFHOSTED_STT_API_KEY: str = ""
+    SELFHOSTED_STT_MODEL: str = "Systran/faster-whisper-large-v3"
+
     # Document Processing
     MAX_FILE_SIZE_MB: int = 50
     SUPPORTED_FORMATS: Annotated[List[str], NoDecode] = ["pdf", "png", "jpg", "jpeg", "tiff"]
@@ -169,7 +202,13 @@ class Settings(BaseSettings):
     # still allowing error capture.
     SENTRY_TRACES_SAMPLE_RATE: float = 0.0
 
-    @field_validator("ALLOWED_ORIGINS", "SUPPORTED_FORMATS", mode="before")
+    @field_validator(
+        "ALLOWED_ORIGINS",
+        "SUPPORTED_FORMATS",
+        "NOTES_PROVIDER_ORDER",
+        "STT_PROVIDER_ORDER",
+        mode="before",
+    )
     @classmethod
     def _split_csv(cls, v):
         if isinstance(v, str):
