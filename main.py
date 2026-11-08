@@ -23,6 +23,7 @@ from app.api.routes import (
     enterprises,
     health,
     leads,
+    notes,
     ocr,
     passport_photos,
     public_api,
@@ -181,6 +182,7 @@ app.include_router(leads.router, prefix="/api/v1/leads", tags=["Leads"])
 # Admin-side list + CSV export lives under /api/v1/admin/referrals so it
 # can share the require_super_admin dependency.
 app.include_router(referrals.router, prefix="/api/v1/referrals", tags=["Referrals"])
+app.include_router(notes.router, prefix="/api/v1/notes", tags=["AI Notes"])
 # Cloud storage endpoints live under /integrations so the URL tree groups
 # integration features cleanly. The export endpoint piggybacks on /documents.
 app.include_router(cloud_storage.router, prefix="/api/v1/integrations", tags=["Cloud Storage"])
